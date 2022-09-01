@@ -1,0 +1,30 @@
+{
+  "name": "apache-unomi-tracker",
+  "version": "1.0.0",
+  "description": "A web tracker for Apache Unomi",
+  "main": "dist/apache-unomi-tracker.cjs.js",
+  "module": "dist/apache-unomi-tracker.esm.js",
+  "browser": "dist/apache-unomi-tracker.umd.js",
+  "keywords": [
+    "unomi",
+    "npm"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "test": "node test/spec",
+    "pretest": "yarn run build"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.18.13",
+    "@babel/plugin-transform-runtime": "^7.18.10",
+    "@babel/preset-env": "^7.18.10",
+    "@rollup/plugin-babel": "^5.3.1",
+    "@rollup/plugin-commonjs": "^22.0.2",
+    "@rollup/plugin-node-resolve": "^13.3.0",
+    "rollup": "^2.79.0"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.18.9"
+  },
+  "license": "Apache-2.0"
+}
