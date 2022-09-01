@@ -1,5 +1,7 @@
 {
   "name": "apache-unomi-tracker",
+  "repository": "apache/unomi-tracker",
+  "author": "unomi <dev@unomi.apache.org>",
   "version": "1.0.0",
   "description": "A web tracker for Apache Unomi",
   "main": "dist/apache-unomi-tracker.cjs.js",
@@ -13,7 +15,8 @@
     "build": "rollup -c",
     "test": "node test/spec",
     "pretest": "yarn run build",
-    "lint": "eslint --ext js,json ."
+    "lint": "eslint --ext js,json .",
+    "release": "auto shipit"
   },
   "devDependencies": {
     "@babel/core": "^7.18.13",
@@ -22,6 +25,7 @@
     "@rollup/plugin-babel": "^5.3.1",
     "@rollup/plugin-commonjs": "^22.0.2",
     "@rollup/plugin-node-resolve": "^13.3.0",
+    "auto": "^10.37.4",
     "eslint": "^8.23.0",
     "eslint-plugin-json": "^3.1.0",
     "rollup": "^2.79.0"
@@ -29,5 +33,10 @@
   "dependencies": {
     "@babel/runtime": "^7.18.9"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "auto": {
+    "plugins": [
+      "npm"
+    ]
+  }
 }
