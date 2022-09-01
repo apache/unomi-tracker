@@ -15,4 +15,12 @@
   ~ limitations under the License.
   -->
 
-# unomi-tracker
+Apache Unomi tracker
+============
+https://unomi.apache.org
+
+A JavaScript tracker library for Apache Unomi.
+
+License
+-------
+The source code is available under the Apache License V2

@@ -12,7 +12,8 @@
   "scripts": {
     "build": "rollup -c",
     "test": "node test/spec",
-    "pretest": "yarn run build"
+    "pretest": "yarn run build",
+    "lint": "eslint --ext js,json ."
   },
   "devDependencies": {
     "@babel/core": "^7.18.13",
@@ -21,6 +22,8 @@
     "@rollup/plugin-babel": "^5.3.1",
     "@rollup/plugin-commonjs": "^22.0.2",
     "@rollup/plugin-node-resolve": "^13.3.0",
+    "eslint": "^8.23.0",
+    "eslint-plugin-json": "^3.1.0",
     "rollup": "^2.79.0"
   },
   "dependencies": {
