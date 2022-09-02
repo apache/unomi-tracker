@@ -32,7 +32,7 @@ Npm account
 - Ask on Apache Unomi dev mailing list (dev@unomi.apache.org) to be added as a maintainer for the package to be able to push versions
 - Login locally: `npm login` and your credentials
 
-Create a new release
+Push a new version
 -------
 - Bump version in the `main` branch: `1.0.0` -> `1.1.0` or for beta version `1.0.0-beta.0` -> `1.0.0-beta.1`
   - You can run `npm version 3.1.0-beta.0` to update `package.json` and create a git tag in one go (see https://docs.npmjs.com/cli/version).
