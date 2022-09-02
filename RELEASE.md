@@ -45,5 +45,8 @@ Create a new release
 - Publish on npm the package:
   - in case of normal version: `npm publish`
   - in case of beta version: `npm publish --tag beta`
-- Create the release on GitHub for this tag.
-- merge back `main` -> `develop` to get latest package version in `develop` branch
+- Create the release on GitHub for this tag (in case version is not beta).
+- merge back `main` -> `develop` to get latest package version in `develop` branch, runs:
+  - `git checkout develop`
+  - `git merge main --ff-only`
+  - `git push -u origin develop`
