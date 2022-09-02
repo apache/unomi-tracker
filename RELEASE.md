@@ -34,8 +34,6 @@ Npm account
 
 Create a new release
 -------
-- Create a pull request from `develop` branch -> `main` branch.
-  - Wait for a review and merge the PR.
 - Bump version in the `main` branch: `1.0.0` -> `1.1.0` or for beta version `1.0.0-beta.0` -> `1.0.0-beta.1`
   - You can run `npm version 3.1.0-beta.0` to update `package.json` and create a git tag in one go (see https://docs.npmjs.com/cli/version).
 - Run checks:
@@ -46,7 +44,3 @@ Create a new release
   - in case of normal version: `npm publish`
   - in case of beta version: `npm publish --tag beta`
 - Create the release on GitHub for this tag (in case version is not beta).
-- merge back `main` -> `develop` to get latest package version in `develop` branch, runs:
-  - `git checkout develop`
-  - `git merge main --ff-only`
-  - `git push -u origin develop`
