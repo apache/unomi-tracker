@@ -43,7 +43,7 @@ Create a new release
   - `yarn test`: ensure tests are passing
   - `yarn build`: ensure build is passing
 - Publish on npm the package:
-  - in case of beta: `npm publish`
-  - in case of normal version: `npm publish --tag beta`
+  - in case of normal version: `npm publish`
+  - in case of beta version: `npm publish --tag beta`
 - Create the release on GitHub for this tag.
 - merge back `main` -> `develop` to get latest package version in `develop` branch
