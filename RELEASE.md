@@ -20,11 +20,11 @@ Unomi tracker: Versioning and release
 
 Branches
 -------
-Current repository is using Git Flow.
+Current repository is using Trunk based development.
 
-- `main`: Used for merging develop branch for tagging and releasing a new version
-- `develop`: Used for merging new features and/or bug fixes from UNOMI-XXX branches
-- `UNOMI-XXX`: feature or bug fix branches
+- `main`: Used for latest currently develop version
+- `1_x`: Used for maintenance branches of previous versions
+- `UNOMI-XXX`: feature or bug fix branches used to create pull request targeting the `main` branch
 
 Npm account
 -------
