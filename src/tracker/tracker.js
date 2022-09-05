@@ -6,28 +6,22 @@ export const newTracker = () => {
             return wem.cxs;
         },
 
-        enableWem: () => {
-            wem._enableWem(true);
+        getFormNamesToWatch: function () {
+            return wem.formNamesToWatch;
         },
 
-        disableWem: () => {
-            wem._enableWem(false);
-        },
         /**
-         * This function initialize the context in the page it is called internally and should not be called twice in the same page
+         * This function initialize the tracker
          *
          * @param {object} digitalData config of the tracker
          */
-        init: function (digitalData) {
-            // added for external tracker
-            // store digitalData in tracker instance instead of window.
+        initTracker: function (digitalData) {
             wem.digitalData = digitalData;
-            // new conf:
             wem.trackerProfileIdCookieName =  wem.digitalData.wemInitConfig.trackerProfileIdCookieName ?  wem.digitalData.wemInitConfig.trackerProfileIdCookieName : "wem-profile-id";
             wem.trackerSessionIdCookieName =  wem.digitalData.wemInitConfig.trackerSessionIdCookieName ?  wem.digitalData.wemInitConfig.trackerSessionIdCookieName : "wem-session-id";
             wem.activateWem = wem.digitalData.wemInitConfig.activateWem;
 
-            const { contextServerUrl, isPreview, timeoutInMilliseconds, contextServerCookieName } = wem.digitalData.wemInitConfig;
+            const { contextServerUrl, timeoutInMilliseconds, contextServerCookieName } = wem.digitalData.wemInitConfig;
             wem.contextServerCookieName = contextServerCookieName;
             wem.contextServerUrl = contextServerUrl;
             wem.timeoutInMilliseconds = timeoutInMilliseconds;
@@ -41,12 +35,13 @@ export const newTracker = () => {
                 console.warn('[WEM] empty sessionID, setting to null !');
                 wem.sessionID = null;
             }
+        },
 
-            if (isPreview) {
-                // do not execute fallback for preview!
-                return;
-            }
-
+        /**
+         * This function start the tracker by loading the context in the page
+         */
+        startTracker: function () {
+            // Check before start
             let cookieDisabled = !navigator.cookieEnabled;
             let noSessionID = !wem.sessionID || wem.sessionID === '';
             let crawlerDetected = navigator.userAgent;
@@ -61,6 +56,7 @@ export const newTracker = () => {
                 return;
             }
 
+            // Base callback
             wem._registerCallback(function () {
                 if (wem.cxs.profileId) {
                     wem.setCookie(wem.trackerProfileIdCookieName, wem.cxs.profileId);
@@ -68,69 +64,8 @@ export const newTracker = () => {
                 if (!wem.cxs.profileId) {
                     wem.removeCookie(wem.trackerProfileIdCookieName);
                 }
-                // process tracked events
-                var videoNamesToWatch = [];
-                var clickToWatch = [];
 
-                if (wem.cxs.trackedConditions && wem.cxs.trackedConditions.length > 0) {
-                    for (var i = 0; i < wem.cxs.trackedConditions.length; i++) {
-                        switch (wem.cxs.trackedConditions[i].type) {
-                            case 'formEventCondition':
-                                if (wem.cxs.trackedConditions[i].parameterValues && wem.cxs.trackedConditions[i].parameterValues.formId) {
-                                    wem.formNamesToWatch.push(wem.cxs.trackedConditions[i].parameterValues.formId);
-                                }
-                                break;
-                            case 'videoViewEventCondition':
-                                if (wem.cxs.trackedConditions[i].parameterValues && wem.cxs.trackedConditions[i].parameterValues.videoId) {
-                                    videoNamesToWatch.push(wem.cxs.trackedConditions[i].parameterValues.videoId);
-                                }
-                                break;
-                            case 'clickOnLinkEventCondition':
-                                if (wem.cxs.trackedConditions[i].parameterValues && wem.cxs.trackedConditions[i].parameterValues.itemId) {
-                                    clickToWatch.push(wem.cxs.trackedConditions[i].parameterValues.itemId);
-                                }
-                                break;
-                        }
-                    }
-                }
-
-                var forms = document.querySelectorAll('form');
-                for (var formIndex = 0; formIndex < forms.length; formIndex++) {
-                    var form = forms.item(formIndex);
-                    var formName = form.getAttribute('name') ? form.getAttribute('name') : form.getAttribute('id');
-                    // test attribute data-form-id to not add a listener on FF form
-                    if (formName && wem.formNamesToWatch.indexOf(formName) > -1 && form.getAttribute('data-form-id') == null) {
-                        // add submit listener on form that we need to watch only
-                        console.info('[WEM] watching form ' + formName);
-                        form.addEventListener('submit', wem._formSubmitEventListener, true);
-                    }
-                }
-
-                for (var videoIndex = 0; videoIndex < videoNamesToWatch.length; videoIndex++) {
-                    var videoName = videoNamesToWatch[videoIndex];
-                    var video = document.getElementById(videoName) || document.getElementById(wem._resolveId(videoName));
-
-                    if (video) {
-                        video.addEventListener('play', wem.sendVideoEvent);
-                        video.addEventListener('ended', wem.sendVideoEvent);
-                        console.info('[WEM] watching video ' + videoName);
-                    } else {
-                        console.warn('[WEM] unable to watch video ' + videoName + ', video not found in the page');
-                    }
-                }
-
-                for (var clickIndex = 0; clickIndex < clickToWatch.length; clickIndex++) {
-                    var clickIdName = clickToWatch[clickIndex];
-                    var click = (document.getElementById(clickIdName) || document.getElementById(wem._resolveId(clickIdName)))
-                        ? (document.getElementById(clickIdName) || document.getElementById(wem._resolveId(clickIdName)))
-                        : document.getElementsByName(clickIdName)[0];
-                    if (click) {
-                        click.addEventListener('click', wem.sendClickEvent);
-                        console.info('[WEM] watching click ' + clickIdName);
-                    } else {
-                        console.warn('[WEM] unable to watch click ' + clickIdName + ', element not found in the page');
-                    }
-                }
+                wem._registerListenersForTrackedConditions()
             });
 
             // Load the context once document is ready
@@ -733,6 +668,71 @@ export const newTracker = () => {
         /*************************************/
         /* Private functions under this line */
         /*************************************/
+        _registerListenersForTrackedConditions: function () {
+            var videoNamesToWatch = [];
+            var clickToWatch = [];
+
+            if (wem.cxs.trackedConditions && wem.cxs.trackedConditions.length > 0) {
+                for (var i = 0; i < wem.cxs.trackedConditions.length; i++) {
+                    switch (wem.cxs.trackedConditions[i].type) {
+                        case 'formEventCondition':
+                            if (wem.cxs.trackedConditions[i].parameterValues && wem.cxs.trackedConditions[i].parameterValues.formId) {
+                                wem.formNamesToWatch.push(wem.cxs.trackedConditions[i].parameterValues.formId);
+                            }
+                            break;
+                        case 'videoViewEventCondition':
+                            if (wem.cxs.trackedConditions[i].parameterValues && wem.cxs.trackedConditions[i].parameterValues.videoId) {
+                                videoNamesToWatch.push(wem.cxs.trackedConditions[i].parameterValues.videoId);
+                            }
+                            break;
+                        case 'clickOnLinkEventCondition':
+                            if (wem.cxs.trackedConditions[i].parameterValues && wem.cxs.trackedConditions[i].parameterValues.itemId) {
+                                clickToWatch.push(wem.cxs.trackedConditions[i].parameterValues.itemId);
+                            }
+                            break;
+                    }
+                }
+            }
+
+            var forms = document.querySelectorAll('form');
+            for (var formIndex = 0; formIndex < forms.length; formIndex++) {
+                var form = forms.item(formIndex);
+                var formName = form.getAttribute('name') ? form.getAttribute('name') : form.getAttribute('id');
+                // test attribute data-form-id to not add a listener on FF form
+                if (formName && wem.formNamesToWatch.indexOf(formName) > -1 && form.getAttribute('data-form-id') == null) {
+                    // add submit listener on form that we need to watch only
+                    console.info('[WEM] watching form ' + formName);
+                    form.addEventListener('submit', wem._formSubmitEventListener, true);
+                }
+            }
+
+            for (var videoIndex = 0; videoIndex < videoNamesToWatch.length; videoIndex++) {
+                var videoName = videoNamesToWatch[videoIndex];
+                var video = document.getElementById(videoName) || document.getElementById(wem._resolveId(videoName));
+
+                if (video) {
+                    video.addEventListener('play', wem.sendVideoEvent);
+                    video.addEventListener('ended', wem.sendVideoEvent);
+                    console.info('[WEM] watching video ' + videoName);
+                } else {
+                    console.warn('[WEM] unable to watch video ' + videoName + ', video not found in the page');
+                }
+            }
+
+            for (var clickIndex = 0; clickIndex < clickToWatch.length; clickIndex++) {
+                var clickIdName = clickToWatch[clickIndex];
+                var click = (document.getElementById(clickIdName) || document.getElementById(wem._resolveId(clickIdName)))
+                    ? (document.getElementById(clickIdName) || document.getElementById(wem._resolveId(clickIdName)))
+                    : document.getElementsByName(clickIdName)[0];
+                if (click) {
+                    click.addEventListener('click', wem.sendClickEvent);
+                    console.info('[WEM] watching click ' + clickIdName);
+                } else {
+                    console.warn('[WEM] unable to watch click ' + clickIdName + ', element not found in the page');
+                }
+            }
+        },
+
         _checkUncompleteRegisteredEvents: function () {
             if (wem.digitalData && wem.digitalData.events) {
                 for (const event of wem.digitalData.events) {
