@@ -2,7 +2,7 @@ import { Crawler } from 'es6-crawler-detect';
 
 export const newTracker = () => {
     const wem = {
-        getCurrentContext: function () {
+        getLoadedContext: function () {
             return wem.cxs;
         },
 
