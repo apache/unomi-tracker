@@ -29,7 +29,8 @@
     "rollup": "^2.79.0"
   },
   "dependencies": {
-    "@babel/runtime": "^7.18.9"
+    "@babel/runtime": "^7.18.9",
+    "es6-crawler-detect": "^3.3.0"
   },
   "license": "Apache-2.0"
 }

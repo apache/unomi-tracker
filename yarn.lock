@@ -1330,6 +1330,11 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.239.tgz#5b04acb39c16b897a508980d1be95ba5f0201771"
   integrity sha512-XbhfzxPIFzMjJm17T7yUGZEyYh5XuUjrA/FQ7JUy2bEd4qQ7MvFTaKpZ6zXZog1cfVttESo2Lx0ctnf7eQOaAQ==
 
+es6-crawler-detect@^3.3.0:
+  version "3.3.0"
+  resolved "https://registry.yarnpkg.com/es6-crawler-detect/-/es6-crawler-detect-3.3.0.tgz#3a05cd3f2739099145bf40b012a6ad472cbbfb49"
+  integrity sha512-ptGU13H76+HNr5n0kvi5aO+RuqRHaIET/60Srv4+BgVWsuVVf3x9seDhz/IEcmuQMXJvrU2g+DbrKVrliUkTJQ==
+
 escalade@^3.1.1:
   version "3.1.1"
   resolved "https://registry.yarnpkg.com/escalade/-/escalade-3.1.1.tgz#d8cfdc7000965c5a0174b4a82eaa5c0552742e40"

@@ -15,4 +15,8 @@
  * limitations under the License.
  */
 
-export const hello = () => "Hello world!";
+import {newTracker} from "./tracker/tracker";
+
+export const useTracker = () => {
+    return newTracker();
+};
