@@ -2,6 +2,10 @@ import { Crawler } from 'es6-crawler-detect';
 
 export const newTracker = () => {
     const wem = {
+        getCurrentContext: function () {
+            return wem.cxs;
+        },
+
         enableWem: () => {
             wem._enableWem(true);
         },
