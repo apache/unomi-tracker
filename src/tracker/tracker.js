@@ -118,6 +118,14 @@ export const newTracker = () => {
             return wem.formNamesToWatch;
         },
 
+        /**
+         * Get current session id
+         * @returns {null|*}
+         */
+        getSessionId: function () {
+            return wem.sessionID;
+        },
+
         convertUrlParametersToObj: function (searchString) {
             if (!searchString) {
                 return null;

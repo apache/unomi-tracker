@@ -131,6 +131,14 @@ var newTracker = function newTracker() {
     getFormNamesToWatch: function getFormNamesToWatch() {
       return wem.formNamesToWatch;
     },
+
+    /**
+     * Get current session id
+     * @returns {null|*}
+     */
+    getSessionId: function getSessionId() {
+      return wem.sessionID;
+    },
     convertUrlParametersToObj: function convertUrlParametersToObj(searchString) {
       if (!searchString) {
         return null;
