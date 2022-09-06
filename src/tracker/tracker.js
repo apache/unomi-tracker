@@ -31,8 +31,11 @@ export const newTracker = () => {
 
         /**
          * This function start the tracker by loading the context in the page
+         * Note: that the tracker will start once the current DOM is complete loaded, using listener on current document: DOMContentLoaded
+         *
+         * @param {object[]} digitalDataOverrides optional, list of digitalData extensions, they will be merged with original digitalData before context loading
          */
-        startTracker: function () {
+        startTracker: function (digitalDataOverrides = undefined) {
             // Check before start
             let cookieDisabled = !navigator.cookieEnabled;
             let noSessionID = !wem.sessionID || wem.sessionID === '';
@@ -48,7 +51,7 @@ export const newTracker = () => {
                 return;
             }
 
-            // Base callback
+            // Register base context callback
             wem._registerCallback(function () {
                 if (wem.cxs.profileId) {
                     wem.setCookie(wem.trackerProfileIdCookieName, wem.cxs.profileId);
@@ -63,6 +66,9 @@ export const newTracker = () => {
             // Load the context once document is ready
             document.addEventListener('DOMContentLoaded', function () {
                 wem.DOMLoaded = true;
+
+                // enrich digital data considering extensions
+                wem._handleDigitalDataOverrides(digitalDataOverrides);
 
                 // complete already registered events
                 wem._checkUncompleteRegisteredEvents();
@@ -688,6 +694,14 @@ export const newTracker = () => {
         /*************************************/
         /* Private functions under this line */
         /*************************************/
+        _handleDigitalDataOverrides: function (digitalDataOverrides) {
+            if (digitalDataOverrides && digitalDataOverrides.length > 0) {
+                for (const digitalDataOverride of digitalDataOverrides) {
+                    wem.digitalData = wem._deepMergeObjects(digitalDataOverride, wem.digitalData);
+                }
+            }
+        },
+
         _registerListenersForTrackedConditions: function () {
             var videoNamesToWatch = [];
             var clickToWatch = [];
@@ -1110,6 +1124,32 @@ export const newTracker = () => {
                 callback(enable)
             }
             console.log(`Wem ${enable ? 'enabled' : 'disabled'}`);
+        },
+
+        _deepMergeObjects: function (source, target) {
+            if (!wem._isObject(target) || !wem._isObject(source)) {
+                return source;
+            }
+
+            Object.keys(source).forEach(key => {
+                const targetValue = target[key];
+                const sourceValue = source[key];
+
+                // concat arrays || merge objects || add new props
+                if (Array.isArray(targetValue) && Array.isArray(sourceValue)) {
+                    target[key] = targetValue.concat(sourceValue);
+                } else if (wem._isObject(targetValue) && wem._isObject(sourceValue)) {
+                    target[key] = wem._deepMergeObjects(sourceValue, Object.assign({}, targetValue));
+                } else {
+                    target[key] = sourceValue;
+                }
+            });
+
+            return target;
+        },
+
+        _isObject: function (obj) {
+            return obj && typeof obj === 'object';
         },
 
         _isInControlGroup: function (id) {

@@ -4,6 +4,16 @@
   (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global["apache-unomi-tracker"] = {}));
 })(this, (function (exports) { 'use strict';
 
+  function _typeof(obj) {
+    "@babel/helpers - typeof";
+
+    return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (obj) {
+      return typeof obj;
+    } : function (obj) {
+      return obj && "function" == typeof Symbol && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
+    }, _typeof(obj);
+  }
+
   class Provider$3 {
     constructor() {}
 
@@ -1685,8 +1695,12 @@
 
       /**
        * This function start the tracker by loading the context in the page
+       * Note: that the tracker will start once the current DOM is complete loaded, using listener on current document: DOMContentLoaded
+       *
+       * @param {object[]} digitalDataOverrides optional, list of digitalData extensions, they will be merged with original digitalData before context loading
        */
       startTracker: function startTracker() {
+        var digitalDataOverrides = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : undefined;
         // Check before start
         var cookieDisabled = !navigator.cookieEnabled;
         var noSessionID = !wem.sessionID || wem.sessionID === '';
@@ -1702,7 +1716,7 @@
             wem._executeFallback('navigator cookie disabled: ' + cookieDisabled + ', no sessionID: ' + noSessionID + ', web crawler detected: ' + crawlerDetected);
           });
           return;
-        } // Base callback
+        } // Register base context callback
 
 
         wem._registerCallback(function () {
@@ -1719,7 +1733,10 @@
 
 
         document.addEventListener('DOMContentLoaded', function () {
-          wem.DOMLoaded = true; // complete already registered events
+          wem.DOMLoaded = true; // enrich digital data considering extensions
+
+          wem._handleDigitalDataOverrides(digitalDataOverrides); // complete already registered events
+
 
           wem._checkUncompleteRegisteredEvents(); // Dispatch javascript events for the experience (perso/opti displayed from SSR, based on unomi events)
 
@@ -2381,6 +2398,23 @@
       /* Private functions under this line */
 
       /*************************************/
+      _handleDigitalDataOverrides: function _handleDigitalDataOverrides(digitalDataOverrides) {
+        if (digitalDataOverrides && digitalDataOverrides.length > 0) {
+          var _iterator = _createForOfIteratorHelper(digitalDataOverrides),
+              _step;
+
+          try {
+            for (_iterator.s(); !(_step = _iterator.n()).done;) {
+              var digitalDataOverride = _step.value;
+              wem.digitalData = wem._deepMergeObjects(digitalDataOverride, wem.digitalData);
+            }
+          } catch (err) {
+            _iterator.e(err);
+          } finally {
+            _iterator.f();
+          }
+        }
+      },
       _registerListenersForTrackedConditions: function _registerListenersForTrackedConditions() {
         var videoNamesToWatch = [];
         var clickToWatch = [];
@@ -2452,24 +2486,6 @@
       },
       _checkUncompleteRegisteredEvents: function _checkUncompleteRegisteredEvents() {
         if (wem.digitalData && wem.digitalData.events) {
-          var _iterator = _createForOfIteratorHelper(wem.digitalData.events),
-              _step;
-
-          try {
-            for (_iterator.s(); !(_step = _iterator.n()).done;) {
-              var event = _step.value;
-
-              wem._completeEvent(event);
-            }
-          } catch (err) {
-            _iterator.e(err);
-          } finally {
-            _iterator.f();
-          }
-        }
-      },
-      _dispatchJSExperienceDisplayedEvents: function _dispatchJSExperienceDisplayedEvents() {
-        if (wem.digitalData && wem.digitalData.events) {
           var _iterator2 = _createForOfIteratorHelper(wem.digitalData.events),
               _step2;
 
@@ -2477,14 +2493,32 @@
             for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
               var event = _step2.value;
 
-              if (event.eventType === 'optimizationTestEvent' || event.eventType === 'personalizationEvent') {
-                wem._dispatchJSExperienceDisplayedEvent(event);
-              }
+              wem._completeEvent(event);
             }
           } catch (err) {
             _iterator2.e(err);
           } finally {
             _iterator2.f();
+          }
+        }
+      },
+      _dispatchJSExperienceDisplayedEvents: function _dispatchJSExperienceDisplayedEvents() {
+        if (wem.digitalData && wem.digitalData.events) {
+          var _iterator3 = _createForOfIteratorHelper(wem.digitalData.events),
+              _step3;
+
+          try {
+            for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+              var event = _step3.value;
+
+              if (event.eventType === 'optimizationTestEvent' || event.eventType === 'personalizationEvent') {
+                wem._dispatchJSExperienceDisplayedEvent(event);
+              }
+            }
+          } catch (err) {
+            _iterator3.e(err);
+          } finally {
+            _iterator3.f();
           }
         }
       },
@@ -2495,12 +2529,12 @@
             personalizationEvent: 'personalization'
           };
 
-          var _iterator3 = _createForOfIteratorHelper(experienceUnomiEvent.target.properties.variants),
-              _step3;
+          var _iterator4 = _createForOfIteratorHelper(experienceUnomiEvent.target.properties.variants),
+              _step4;
 
           try {
-            for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
-              var variant = _step3.value;
+            for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+              var variant = _step4.value;
               var jsEventDetail = {
                 id: variant.id,
                 name: variant.systemName,
@@ -2522,9 +2556,9 @@
               wem.dispatchJSEvent('displayWemVariant', false, false, jsEventDetail);
             }
           } catch (err) {
-            _iterator3.e(err);
+            _iterator4.e(err);
           } finally {
-            _iterator3.f();
+            _iterator4.f();
           }
         }
       },
@@ -2853,6 +2887,28 @@
         }
 
         console.log("Wem ".concat(enable ? 'enabled' : 'disabled'));
+      },
+      _deepMergeObjects: function _deepMergeObjects(source, target) {
+        if (!wem._isObject(target) || !wem._isObject(source)) {
+          return source;
+        }
+
+        Object.keys(source).forEach(function (key) {
+          var targetValue = target[key];
+          var sourceValue = source[key]; // concat arrays || merge objects || add new props
+
+          if (Array.isArray(targetValue) && Array.isArray(sourceValue)) {
+            target[key] = targetValue.concat(sourceValue);
+          } else if (wem._isObject(targetValue) && wem._isObject(sourceValue)) {
+            target[key] = wem._deepMergeObjects(sourceValue, Object.assign({}, targetValue));
+          } else {
+            target[key] = sourceValue;
+          }
+        });
+        return target;
+      },
+      _isObject: function _isObject(obj) {
+        return obj && _typeof(obj) === 'object';
       },
       _isInControlGroup: function _isInControlGroup(id) {
         if (wem.cxs.profileProperties && wem.cxs.profileProperties.unomiControlGroups) {

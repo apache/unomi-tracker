@@ -2,7 +2,12 @@
 
 Object.defineProperty(exports, '__esModule', { value: true });
 
+var _typeof = require('@babel/runtime/helpers/typeof');
 var es6CrawlerDetect = require('es6-crawler-detect');
+
+function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
+
+var _typeof__default = /*#__PURE__*/_interopDefaultLegacy(_typeof);
 
 function _createForOfIteratorHelper(o, allowArrayLike) { var it = typeof Symbol !== "undefined" && o[Symbol.iterator] || o["@@iterator"]; if (!it) { if (Array.isArray(o) || (it = _unsupportedIterableToArray(o)) || allowArrayLike && o && typeof o.length === "number") { if (it) o = it; var i = 0; var F = function F() {}; return { s: F, n: function n() { if (i >= o.length) return { done: true }; return { done: false, value: o[i++] }; }, e: function e(_e) { throw _e; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var normalCompletion = true, didErr = false, err; return { s: function s() { it = it.call(o); }, n: function n() { var step = it.next(); normalCompletion = step.done; return step; }, e: function e(_e2) { didErr = true; err = _e2; }, f: function f() { try { if (!normalCompletion && it.return != null) it.return(); } finally { if (didErr) throw err; } } }; }
 
@@ -43,8 +48,12 @@ var newTracker = function newTracker() {
 
     /**
      * This function start the tracker by loading the context in the page
+     * Note: that the tracker will start once the current DOM is complete loaded, using listener on current document: DOMContentLoaded
+     *
+     * @param {object[]} digitalDataOverrides optional, list of digitalData extensions, they will be merged with original digitalData before context loading
      */
     startTracker: function startTracker() {
+      var digitalDataOverrides = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : undefined;
       // Check before start
       var cookieDisabled = !navigator.cookieEnabled;
       var noSessionID = !wem.sessionID || wem.sessionID === '';
@@ -60,7 +69,7 @@ var newTracker = function newTracker() {
           wem._executeFallback('navigator cookie disabled: ' + cookieDisabled + ', no sessionID: ' + noSessionID + ', web crawler detected: ' + crawlerDetected);
         });
         return;
-      } // Base callback
+      } // Register base context callback
 
 
       wem._registerCallback(function () {
@@ -77,7 +86,10 @@ var newTracker = function newTracker() {
 
 
       document.addEventListener('DOMContentLoaded', function () {
-        wem.DOMLoaded = true; // complete already registered events
+        wem.DOMLoaded = true; // enrich digital data considering extensions
+
+        wem._handleDigitalDataOverrides(digitalDataOverrides); // complete already registered events
+
 
         wem._checkUncompleteRegisteredEvents(); // Dispatch javascript events for the experience (perso/opti displayed from SSR, based on unomi events)
 
@@ -739,6 +751,23 @@ var newTracker = function newTracker() {
     /* Private functions under this line */
 
     /*************************************/
+    _handleDigitalDataOverrides: function _handleDigitalDataOverrides(digitalDataOverrides) {
+      if (digitalDataOverrides && digitalDataOverrides.length > 0) {
+        var _iterator = _createForOfIteratorHelper(digitalDataOverrides),
+            _step;
+
+        try {
+          for (_iterator.s(); !(_step = _iterator.n()).done;) {
+            var digitalDataOverride = _step.value;
+            wem.digitalData = wem._deepMergeObjects(digitalDataOverride, wem.digitalData);
+          }
+        } catch (err) {
+          _iterator.e(err);
+        } finally {
+          _iterator.f();
+        }
+      }
+    },
     _registerListenersForTrackedConditions: function _registerListenersForTrackedConditions() {
       var videoNamesToWatch = [];
       var clickToWatch = [];
@@ -810,24 +839,6 @@ var newTracker = function newTracker() {
     },
     _checkUncompleteRegisteredEvents: function _checkUncompleteRegisteredEvents() {
       if (wem.digitalData && wem.digitalData.events) {
-        var _iterator = _createForOfIteratorHelper(wem.digitalData.events),
-            _step;
-
-        try {
-          for (_iterator.s(); !(_step = _iterator.n()).done;) {
-            var event = _step.value;
-
-            wem._completeEvent(event);
-          }
-        } catch (err) {
-          _iterator.e(err);
-        } finally {
-          _iterator.f();
-        }
-      }
-    },
-    _dispatchJSExperienceDisplayedEvents: function _dispatchJSExperienceDisplayedEvents() {
-      if (wem.digitalData && wem.digitalData.events) {
         var _iterator2 = _createForOfIteratorHelper(wem.digitalData.events),
             _step2;
 
@@ -835,14 +846,32 @@ var newTracker = function newTracker() {
           for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
             var event = _step2.value;
 
-            if (event.eventType === 'optimizationTestEvent' || event.eventType === 'personalizationEvent') {
-              wem._dispatchJSExperienceDisplayedEvent(event);
-            }
+            wem._completeEvent(event);
           }
         } catch (err) {
           _iterator2.e(err);
         } finally {
           _iterator2.f();
+        }
+      }
+    },
+    _dispatchJSExperienceDisplayedEvents: function _dispatchJSExperienceDisplayedEvents() {
+      if (wem.digitalData && wem.digitalData.events) {
+        var _iterator3 = _createForOfIteratorHelper(wem.digitalData.events),
+            _step3;
+
+        try {
+          for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+            var event = _step3.value;
+
+            if (event.eventType === 'optimizationTestEvent' || event.eventType === 'personalizationEvent') {
+              wem._dispatchJSExperienceDisplayedEvent(event);
+            }
+          }
+        } catch (err) {
+          _iterator3.e(err);
+        } finally {
+          _iterator3.f();
         }
       }
     },
@@ -853,12 +882,12 @@ var newTracker = function newTracker() {
           personalizationEvent: 'personalization'
         };
 
-        var _iterator3 = _createForOfIteratorHelper(experienceUnomiEvent.target.properties.variants),
-            _step3;
+        var _iterator4 = _createForOfIteratorHelper(experienceUnomiEvent.target.properties.variants),
+            _step4;
 
         try {
-          for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
-            var variant = _step3.value;
+          for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+            var variant = _step4.value;
             var jsEventDetail = {
               id: variant.id,
               name: variant.systemName,
@@ -880,9 +909,9 @@ var newTracker = function newTracker() {
             wem.dispatchJSEvent('displayWemVariant', false, false, jsEventDetail);
           }
         } catch (err) {
-          _iterator3.e(err);
+          _iterator4.e(err);
         } finally {
-          _iterator3.f();
+          _iterator4.f();
         }
       }
     },
@@ -1211,6 +1240,28 @@ var newTracker = function newTracker() {
       }
 
       console.log("Wem ".concat(enable ? 'enabled' : 'disabled'));
+    },
+    _deepMergeObjects: function _deepMergeObjects(source, target) {
+      if (!wem._isObject(target) || !wem._isObject(source)) {
+        return source;
+      }
+
+      Object.keys(source).forEach(function (key) {
+        var targetValue = target[key];
+        var sourceValue = source[key]; // concat arrays || merge objects || add new props
+
+        if (Array.isArray(targetValue) && Array.isArray(sourceValue)) {
+          target[key] = targetValue.concat(sourceValue);
+        } else if (wem._isObject(targetValue) && wem._isObject(sourceValue)) {
+          target[key] = wem._deepMergeObjects(sourceValue, Object.assign({}, targetValue));
+        } else {
+          target[key] = sourceValue;
+        }
+      });
+      return target;
+    },
+    _isObject: function _isObject(obj) {
+      return obj && _typeof__default["default"](obj) === 'object';
     },
     _isInControlGroup: function _isInControlGroup(id) {
       if (wem.cxs.profileProperties && wem.cxs.profileProperties.unomiControlGroups) {
