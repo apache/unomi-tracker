@@ -11,13 +11,6 @@ function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o =
 function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
 var newTracker = function newTracker() {
   var wem = {
-    getLoadedContext: function getLoadedContext() {
-      return wem.cxs;
-    },
-    getFormNamesToWatch: function getFormNamesToWatch() {
-      return wem.formNamesToWatch;
-    },
-
     /**
      * This function initialize the tracker
      *
@@ -119,6 +112,24 @@ var newTracker = function newTracker() {
           wem._executeFallback('wem is not activated on current page');
         }
       });
+    },
+
+    /**
+     * get the current loaded context from Unomi, will be accessible only after loadContext() have been performed
+     * @returns {object} loaded context
+     */
+    getLoadedContext: function getLoadedContext() {
+      return wem.cxs;
+    },
+
+    /**
+     * In case Unomi contains rules related to HTML forms in the current page, this will be there names/ids
+     * The logic is simple, in case a rule exists for current webpage on a form event in Unomi backend,
+     *  then this form will be identified as form to be watched.
+     * @returns {string[]} form names/ids in current web page
+     */
+    getFormNamesToWatch: function getFormNamesToWatch() {
+      return wem.formNamesToWatch;
     },
     convertUrlParametersToObj: function convertUrlParametersToObj(searchString) {
       if (!searchString) {

@@ -2,14 +2,6 @@ import { Crawler } from 'es6-crawler-detect';
 
 export const newTracker = () => {
     const wem = {
-        getLoadedContext: function () {
-            return wem.cxs;
-        },
-
-        getFormNamesToWatch: function () {
-            return wem.formNamesToWatch;
-        },
-
         /**
          * This function initialize the tracker
          *
@@ -106,6 +98,24 @@ export const newTracker = () => {
                     wem._executeFallback('wem is not activated on current page');
                 }
             });
+        },
+
+        /**
+         * get the current loaded context from Unomi, will be accessible only after loadContext() have been performed
+         * @returns {object} loaded context
+         */
+        getLoadedContext: function () {
+            return wem.cxs;
+        },
+
+        /**
+         * In case Unomi contains rules related to HTML forms in the current page, this will be there names/ids
+         * The logic is simple, in case a rule exists for current webpage on a form event in Unomi backend,
+         *  then this form will be identified as form to be watched.
+         * @returns {string[]} form names/ids in current web page
+         */
+        getFormNamesToWatch: function () {
+            return wem.formNamesToWatch;
         },
 
         convertUrlParametersToObj: function (searchString) {
