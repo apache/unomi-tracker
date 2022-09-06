@@ -1765,9 +1765,11 @@
       },
 
       /**
-       * In case Unomi contains rules related to HTML forms in the current page, this will be there names/ids
-       * The logic is simple, in case a rule exists for current webpage on a form event in Unomi backend,
-       *  then this form will be identified as form to be watched.
+       * In case Unomi contains rules related to HTML forms in the current page.
+       * The logic is simple, in case a rule exists in Unomi targeting a form event within the current webpage path
+       *  - then this form will be identified as form to be watched.
+       * You can reuse this function to get the list of concerned forms in order to attach listeners automatically for those form for example
+       * (not that current tracker is doing that by default, check function: _registerListenersForTrackedConditions())
        * @returns {string[]} form names/ids in current web page
        */
       getFormNamesToWatch: function getFormNamesToWatch() {
