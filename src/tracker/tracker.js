@@ -11,6 +11,7 @@ export const newTracker = () => {
             wem.digitalData = digitalData;
             wem.trackerProfileIdCookieName =  wem.digitalData.wemInitConfig.trackerProfileIdCookieName ?  wem.digitalData.wemInitConfig.trackerProfileIdCookieName : "wem-profile-id";
             wem.trackerSessionIdCookieName =  wem.digitalData.wemInitConfig.trackerSessionIdCookieName ?  wem.digitalData.wemInitConfig.trackerSessionIdCookieName : "wem-session-id";
+            wem.browserGeneratedSessionSuffix =  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix ?  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix : "";
             wem.activateWem = wem.digitalData.wemInitConfig.activateWem;
 
             const { contextServerUrl, timeoutInMilliseconds, contextServerCookieName } = wem.digitalData.wemInitConfig;
@@ -458,6 +459,20 @@ export const newTracker = () => {
         },
 
         /**
+         * This function will invalidate the Apache Unomi session and profile,
+         * by removing the associated cookies, set the loaded context to undefined
+         * and set the session id cookie with a newly generated ID
+         */
+        invalidateSessionAndProfile: function () {
+            'use strict';
+            wem.sessionID = wem.generateGuid() + wem.browserGeneratedSessionSuffix;
+            wem.setCookie(wem.trackerSessionIdCookieName, wem.sessionID, 1);
+            wem.removeCookie(wem.contextServerCookieName);
+            wem.removeCookie(wem.trackerProfileIdCookieName);
+            wem.cxs = undefined;
+        },
+
+        /**
          * This function return the basic structure for an event, it must be adapted to your need
          *
          * @param {string} eventType The name of your event
@@ -654,6 +669,22 @@ export const newTracker = () => {
             } else {
                 xhr.send();
             }
+        },
+
+        /**
+         * This is an utility function to generate a new UUID
+         *
+         * @returns {string}
+         */
+        generateGuid: function () {
+            function s4() {
+                return Math.floor((1 + Math.random()) * 0x10000)
+                    .toString(16)
+                    .substring(1);
+            }
+
+            return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+                s4() + '-' + s4() + s4() + s4();
         },
 
         /**
