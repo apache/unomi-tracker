@@ -1730,7 +1730,7 @@
           }
 
           wem._registerListenersForTrackedConditions();
-        }); // Load the context once document is ready
+        }, 'Default tracker callback', 0); // Load the context once document is ready
 
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -2637,6 +2637,9 @@
         }
       },
       _registerCallback: function _registerCallback(onLoadCallback) {
+        var name = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "";
+        var priority = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
+
         if (wem.digitalData) {
           if (wem.cxs) {
             console.info('[WEM] digitalData object loaded, calling on load callback immediately and registering update callback...');
@@ -2649,7 +2652,11 @@
 
             if (onLoadCallback) {
               wem.digitalData.loadCallbacks = wem.digitalData.loadCallbacks || [];
-              wem.digitalData.loadCallbacks.push(onLoadCallback);
+              wem.digitalData.loadCallbacks.push({
+                priority: priority,
+                name: name,
+                execute: onLoadCallback
+              });
             }
           }
         } else {
@@ -2658,7 +2665,11 @@
 
           if (onLoadCallback) {
             wem.digitalData.loadCallbacks = [];
-            wem.digitalData.loadCallbacks.push(onLoadCallback);
+            wem.digitalData.loadCallbacks.push({
+              priority: priority,
+              name: name,
+              execute: onLoadCallback
+            });
           }
         }
       },
@@ -2702,11 +2713,7 @@
         if (wem.digitalData.loadCallbacks && wem.digitalData.loadCallbacks.length > 0) {
           console.info('[WEM] Found context server load callbacks, calling now...');
 
-          if (wem.digitalData.loadCallbacks) {
-            for (var i = 0; i < wem.digitalData.loadCallbacks.length; i++) {
-              wem.digitalData.loadCallbacks[i](wem.digitalData);
-            }
-          }
+          wem._executeLoadCallbacks(wem.digitalData);
 
           if (wem.digitalData.personalizationCallback) {
             for (var j = 0; j < wem.digitalData.personalizationCallback.length; j++) {
@@ -2719,18 +2726,26 @@
         window.wemLoaded = true;
       },
       _executeFallback: function _executeFallback(logMessage) {
-        console.warn('[WEM] execute fallback' + (logMessage ? ': ' + logMessage : ''));
+        console.warn('[WEM] execute fallback' + (logMessage ? ': ' + logMessage : '') + ', load fallback callbacks, calling now...');
         wem.fallback = true;
         wem.cxs = {};
 
-        for (var index in wem.digitalData.loadCallbacks) {
-          wem.digitalData.loadCallbacks[index]();
-        }
+        wem._executeLoadCallbacks(undefined);
 
         if (wem.digitalData.personalizationCallback) {
           for (var i = 0; i < wem.digitalData.personalizationCallback.length; i++) {
             wem.digitalData.personalizationCallback[i].callback([wem.digitalData.personalizationCallback[i].personalization.strategyOptions.fallback]);
           }
+        }
+      },
+      _executeLoadCallbacks: function _executeLoadCallbacks(callbackParam) {
+        if (wem.digitalData.loadCallbacks && wem.digitalData.loadCallbacks.length > 0) {
+          wem.digitalData.loadCallbacks.sort(function (a, b) {
+            return a.priority - b.priority;
+          }).forEach(function (loadCallback) {
+            console.warn('[WEM] executing context load callback: ' + (loadCallback.name ? loadCallback.name : 'callback without name'));
+            loadCallback.execute(callbackParam);
+          });
         }
       },
       _processReferrer: function _processReferrer() {

@@ -62,7 +62,7 @@ export const newTracker = () => {
                 }
 
                 wem._registerListenersForTrackedConditions()
-            });
+            }, 'Default tracker callback', 0);
 
             // Load the context once document is ready
             document.addEventListener('DOMContentLoaded', function () {
@@ -897,7 +897,7 @@ export const newTracker = () => {
             }
         },
 
-        _registerCallback: function (onLoadCallback) {
+        _registerCallback: function (onLoadCallback, name = "", priority = 0) {
             if (wem.digitalData) {
                 if (wem.cxs) {
                     console.info('[WEM] digitalData object loaded, calling on load callback immediately and registering update callback...');
@@ -908,7 +908,11 @@ export const newTracker = () => {
                     console.info('[WEM] digitalData object present but not loaded, registering load callback...');
                     if (onLoadCallback) {
                         wem.digitalData.loadCallbacks = wem.digitalData.loadCallbacks || [];
-                        wem.digitalData.loadCallbacks.push(onLoadCallback);
+                        wem.digitalData.loadCallbacks.push({
+                            priority: priority,
+                            name: name,
+                            execute: onLoadCallback
+                        });
                     }
                 }
             } else {
@@ -916,7 +920,11 @@ export const newTracker = () => {
                 wem.digitalData = {};
                 if (onLoadCallback) {
                     wem.digitalData.loadCallbacks = [];
-                    wem.digitalData.loadCallbacks.push(onLoadCallback);
+                    wem.digitalData.loadCallbacks.push({
+                        priority: priority,
+                        name: name,
+                        execute: onLoadCallback
+                    });
                 }
             }
         },
@@ -956,11 +964,8 @@ export const newTracker = () => {
 
             if (wem.digitalData.loadCallbacks && wem.digitalData.loadCallbacks.length > 0) {
                 console.info('[WEM] Found context server load callbacks, calling now...');
-                if (wem.digitalData.loadCallbacks) {
-                    for (var i = 0; i < wem.digitalData.loadCallbacks.length; i++) {
-                        wem.digitalData.loadCallbacks[i](wem.digitalData);
-                    }
-                }
+                wem._executeLoadCallbacks(wem.digitalData);
+
                 if (wem.digitalData.personalizationCallback) {
                     for (var j = 0; j < wem.digitalData.personalizationCallback.length; j++) {
                         wem.digitalData.personalizationCallback[j].callback(wem.cxs.personalizations[wem.digitalData.personalizationCallback[j].personalization.id]);
@@ -972,16 +977,26 @@ export const newTracker = () => {
         },
 
         _executeFallback: function (logMessage) {
-            console.warn('[WEM] execute fallback' + (logMessage ? (': ' + logMessage) : ''));
+            console.warn('[WEM] execute fallback' + (logMessage ? (': ' + logMessage) : '') + ', load fallback callbacks, calling now...');
             wem.fallback = true;
             wem.cxs = {};
-            for (var index in wem.digitalData.loadCallbacks) {
-                wem.digitalData.loadCallbacks[index]();
-            }
+            wem._executeLoadCallbacks(undefined);
+
             if (wem.digitalData.personalizationCallback) {
                 for (var i = 0; i < wem.digitalData.personalizationCallback.length; i++) {
                     wem.digitalData.personalizationCallback[i].callback([wem.digitalData.personalizationCallback[i].personalization.strategyOptions.fallback]);
                 }
+            }
+        },
+
+        _executeLoadCallbacks: function(callbackParam) {
+            if (wem.digitalData.loadCallbacks && wem.digitalData.loadCallbacks.length > 0) {
+                wem.digitalData.loadCallbacks
+                    .sort((a, b) => a.priority - b.priority)
+                    .forEach(loadCallback => {
+                        console.warn('[WEM] executing context load callback: ' + (loadCallback.name ? loadCallback.name : 'callback without name'));
+                        loadCallback.execute(callbackParam)
+                    });
             }
         },
 
