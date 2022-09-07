@@ -80,7 +80,7 @@ var newTracker = function newTracker() {
         if (!wem.disableTrackedConditionsListeners) {
           wem._registerListenersForTrackedConditions();
         }
-      }, 'Default tracker callback', 0); // Load the context once document is ready
+      }, 'Default tracker', 0); // Load the context once document is ready
 
 
       document.addEventListener('DOMContentLoaded', function () {
