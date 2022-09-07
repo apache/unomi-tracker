@@ -1113,8 +1113,6 @@ export const newTracker = () => {
                     }
                 }
             }
-            // Put a marker to be able to know when wem is full loaded, context is loaded, and callbacks have been executed.
-            window.wemLoaded = true;
         },
 
         /**

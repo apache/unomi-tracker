@@ -1215,10 +1215,7 @@ var newTracker = function newTracker() {
             wem.digitalData.personalizationCallback[j].callback(wem.cxs.personalizations[wem.digitalData.personalizationCallback[j].personalization.id]);
           }
         }
-      } // Put a marker to be able to know when wem is full loaded, context is loaded, and callbacks have been executed.
-
-
-      window.wemLoaded = true;
+      }
     },
 
     /**
