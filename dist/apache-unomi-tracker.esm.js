@@ -547,7 +547,8 @@ var newTracker = function newTracker() {
      * @param {object} [targetProperties] The optional properties of the target
      * @returns {object} the target
      */
-    buildTarget: function buildTarget(targetId, targetType, targetProperties) {
+    buildTarget: function buildTarget(targetId, targetType) {
+      var targetProperties = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
       return wem._buildObject(targetId, targetType, targetProperties);
     },
 
@@ -559,7 +560,8 @@ var newTracker = function newTracker() {
      * @param {object} [sourceProperties] The optional properties of the source
      * @returns {object} the source
      */
-    buildSource: function buildSource(sourceId, sourceType, sourceProperties) {
+    buildSource: function buildSource(sourceId, sourceType) {
+      var sourceProperties = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
       return wem._buildObject(sourceId, sourceType, sourceProperties);
     },
 
@@ -1062,10 +1064,12 @@ var newTracker = function newTracker() {
      *
      * @private
      * @param {object} event the Unomi event to be registered
-     * @param {boolean} unshift if true, the event will be added at the beginning of the list otherwise at the end of the list.
+     * @param {boolean} unshift optional, if true, the event will be added at the beginning of the list otherwise at the end of the list. (default: false)
      * @return {undefined}
      */
-    _registerEvent: function _registerEvent(event, unshift) {
+    _registerEvent: function _registerEvent(event) {
+      var unshift = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+
       if (wem.digitalData) {
         if (wem.cxs) {
           console.error('[WEM] already loaded, too late...');
@@ -1169,7 +1173,8 @@ var newTracker = function newTracker() {
      * @private
      * @return {object} the built Unomi JSON object
      */
-    _buildObject: function _buildObject(itemId, itemType, properties) {
+    _buildObject: function _buildObject(itemId, itemType) {
+      var properties = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
       var object = {
         scope: wem.digitalData.scope,
         itemId: itemId,
@@ -1442,7 +1447,8 @@ var newTracker = function newTracker() {
      * @private
      * @return {undefined}
      */
-    _enableWem: function _enableWem(enable, callback) {
+    _enableWem: function _enableWem(enable) {
+      var callback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : undefined;
       // display fallback if wem is not enable
       wem.fallback = !enable; // remove cookies, reset cxs
 

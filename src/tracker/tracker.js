@@ -516,7 +516,7 @@ export const newTracker = () => {
          * @param {object} [targetProperties] The optional properties of the target
          * @returns {object} the target
          */
-        buildTarget: function (targetId, targetType, targetProperties) {
+        buildTarget: function (targetId, targetType, targetProperties = undefined) {
             return wem._buildObject(targetId, targetType, targetProperties);
         },
 
@@ -528,7 +528,7 @@ export const newTracker = () => {
          * @param {object} [sourceProperties] The optional properties of the source
          * @returns {object} the source
          */
-        buildSource: function (sourceId, sourceType, sourceProperties) {
+        buildSource: function (sourceId, sourceType, sourceProperties = undefined) {
             return wem._buildObject(sourceId, sourceType, sourceProperties);
         },
 
@@ -969,10 +969,10 @@ export const newTracker = () => {
          *
          * @private
          * @param {object} event the Unomi event to be registered
-         * @param {boolean} unshift if true, the event will be added at the beginning of the list otherwise at the end of the list.
+         * @param {boolean} unshift optional, if true, the event will be added at the beginning of the list otherwise at the end of the list. (default: false)
          * @return {undefined}
          */
-        _registerEvent: function (event, unshift) {
+        _registerEvent: function (event, unshift = false) {
             if (wem.digitalData) {
                 if (wem.cxs) {
                     console.error('[WEM] already loaded, too late...');
@@ -1063,7 +1063,7 @@ export const newTracker = () => {
          * @private
          * @return {object} the built Unomi JSON object
          */
-        _buildObject: function (itemId, itemType, properties) {
+        _buildObject: function (itemId, itemType, properties = undefined) {
             var object = {
                 scope: wem.digitalData.scope,
                 itemId: itemId,
@@ -1318,7 +1318,7 @@ export const newTracker = () => {
          * @private
          * @return {undefined}
          */
-        _enableWem: (enable, callback) => {
+        _enableWem: (enable, callback = undefined) => {
             // display fallback if wem is not enable
             wem.fallback = !enable;
             // remove cookies, reset cxs
