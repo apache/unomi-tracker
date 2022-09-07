@@ -1291,7 +1291,7 @@ var newTracker = function newTracker() {
         callback(enable);
       }
 
-      console.log("Wem ".concat(enable ? 'enabled' : 'disabled'));
+      console.log("[WEM] successfully ".concat(enable ? 'enabled' : 'disabled', " tracking in current page"));
     },
     _deepMergeObjects: function _deepMergeObjects(source, target) {
       if (!wem._isObject(target) || !wem._isObject(source)) {

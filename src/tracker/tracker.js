@@ -1177,7 +1177,7 @@ export const newTracker = () => {
             if (callback) {
                 callback(enable)
             }
-            console.log(`Wem ${enable ? 'enabled' : 'disabled'}`);
+            console.log(`[WEM] successfully ${enable ? 'enabled' : 'disabled'} tracking in current page`);
         },
 
         _deepMergeObjects: function (source, target) {
