@@ -18,6 +18,7 @@ var newTracker = function newTracker() {
       wem.trackerProfileIdCookieName = wem.digitalData.wemInitConfig.trackerProfileIdCookieName ? wem.digitalData.wemInitConfig.trackerProfileIdCookieName : "wem-profile-id";
       wem.trackerSessionIdCookieName = wem.digitalData.wemInitConfig.trackerSessionIdCookieName ? wem.digitalData.wemInitConfig.trackerSessionIdCookieName : "wem-session-id";
       wem.browserGeneratedSessionSuffix = wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix ? wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix : "";
+      wem.disableTrackedConditionsListeners = wem.digitalData.wemInitConfig.disableTrackedConditionsListeners;
       wem.activateWem = wem.digitalData.wemInitConfig.activateWem;
       var _wem$digitalData$wemI = wem.digitalData.wemInitConfig,
           contextServerUrl = _wem$digitalData$wemI.contextServerUrl,
@@ -74,7 +75,9 @@ var newTracker = function newTracker() {
           wem.removeCookie(wem.trackerProfileIdCookieName);
         }
 
-        wem._registerListenersForTrackedConditions();
+        if (wem.disableTrackedConditionsListeners) {
+          wem._registerListenersForTrackedConditions();
+        }
       }, 'Default tracker callback', 0); // Load the context once document is ready
 
 
@@ -789,6 +792,7 @@ var newTracker = function newTracker() {
       }
     },
     _registerListenersForTrackedConditions: function _registerListenersForTrackedConditions() {
+      console.info('[WEM] Check for tracked conditions and attach related HTML listeners');
       var videoNamesToWatch = [];
       var clickToWatch = [];
 
@@ -827,7 +831,7 @@ var newTracker = function newTracker() {
 
         if (formName && wem.formNamesToWatch.indexOf(formName) > -1 && form.getAttribute('data-form-id') == null) {
           // add submit listener on form that we need to watch only
-          console.info('[WEM] watching form ' + formName);
+          console.info('[WEM] Watching form ' + formName);
           form.addEventListener('submit', wem._formSubmitEventListener, true);
         }
       }
@@ -839,9 +843,9 @@ var newTracker = function newTracker() {
         if (video) {
           video.addEventListener('play', wem.sendVideoEvent);
           video.addEventListener('ended', wem.sendVideoEvent);
-          console.info('[WEM] watching video ' + videoName);
+          console.info('[WEM] Watching video ' + videoName);
         } else {
-          console.warn('[WEM] unable to watch video ' + videoName + ', video not found in the page');
+          console.warn('[WEM] Unable to watch video ' + videoName + ', video not found in the page');
         }
       }
 
@@ -851,9 +855,9 @@ var newTracker = function newTracker() {
 
         if (click) {
           click.addEventListener('click', wem.sendClickEvent);
-          console.info('[WEM] watching click ' + clickIdName);
+          console.info('[WEM] Watching click ' + clickIdName);
         } else {
-          console.warn('[WEM] unable to watch click ' + clickIdName + ', element not found in the page');
+          console.warn('[WEM] Unable to watch click ' + clickIdName + ', element not found in the page');
         }
       }
     },
