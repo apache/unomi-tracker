@@ -62,7 +62,7 @@ export const newTracker = () => {
                     wem.removeCookie(wem.trackerProfileIdCookieName);
                 }
 
-                if (wem.disableTrackedConditionsListeners) {
+                if (!wem.disableTrackedConditionsListeners) {
                     wem._registerListenersForTrackedConditions()
                 }
             }, 'Default tracker callback', 0);

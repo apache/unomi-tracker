@@ -1730,7 +1730,7 @@
             wem.removeCookie(wem.trackerProfileIdCookieName);
           }
 
-          if (wem.disableTrackedConditionsListeners) {
+          if (!wem.disableTrackedConditionsListeners) {
             wem._registerListenersForTrackedConditions();
           }
         }, 'Default tracker callback', 0); // Load the context once document is ready
