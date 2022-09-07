@@ -995,14 +995,14 @@ var newTracker = function newTracker() {
 
       if (wem.digitalData) {
         if (wem.cxs) {
-          console.info('[WEM] digitalData object loaded, calling on load callback immediately and registering update callback...');
+          console.info('[WEM] Trying to register context load callback, but context already loaded, executing now...');
 
           if (onLoadCallback) {
-            console.warn('[WEM] executing context load callback: ' + (name ? name : 'Callback without name'));
+            console.info('[WEM] executing context load callback: ' + (name ? name : 'Callback without name'));
             onLoadCallback(wem.digitalData);
           }
         } else {
-          console.info('[WEM] digitalData object present but not loaded, registering load callback...');
+          console.info('[WEM] registering context load callback: ' + (name ? name : 'Callback without name'));
 
           if (onLoadCallback) {
             wem.digitalData.loadCallbacks = wem.digitalData.loadCallbacks || [];
@@ -1014,7 +1014,7 @@ var newTracker = function newTracker() {
           }
         }
       } else {
-        console.info('[WEM] No digital data object found, creating and registering update callback...');
+        console.info('[WEM] Trying to register context load callback, but no digitalData conf found, creating it and registering the callback: ' + (name ? name : 'Callback without name'));
         wem.digitalData = {};
 
         if (onLoadCallback) {
@@ -1097,7 +1097,7 @@ var newTracker = function newTracker() {
         wem.digitalData.loadCallbacks.sort(function (a, b) {
           return a.priority - b.priority;
         }).forEach(function (loadCallback) {
-          console.warn('[WEM] executing context load callback: ' + (loadCallback.name ? loadCallback.name : 'callback without name'));
+          console.info('[WEM] executing context load callback: ' + (loadCallback.name ? loadCallback.name : 'callback without name'));
           loadCallback.execute(callbackParam);
         });
       }
