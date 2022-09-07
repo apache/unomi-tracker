@@ -1,8 +1,7 @@
 {
     "env": {
         "browser": true,
-        "es2021": true,
-        "node": true
+        "es2021": true
     },
     "extends": "eslint:recommended",
     "plugins": ["json"],
@@ -12,6 +11,121 @@
         "ecmaVersion": "latest",
         "sourceType": "module"
     },
+    "globals": {
+        "require": false
+    },
     "rules": {
+        "indent": [
+            "error",
+            4,
+            {
+                "SwitchCase": 1
+            }
+        ],
+        "linebreak-style": [
+            "error",
+            "unix"
+        ],
+        "quotes": [
+            "error",
+            "single"
+        ],
+        "semi": [
+            "error",
+            "always"
+        ],
+        "no-console": [
+            "off",
+            "allow"
+        ],
+        "no-unused-vars": [
+            "warn",
+            {
+                "vars": "all",
+                "args": "after-used",
+                "ignoreRestSiblings": false
+            }
+        ],
+        "no-global-assign": [
+            "error",
+            {
+                "exceptions": ["__webpack_public_path__"]
+            }
+        ],
+        "no-useless-escape": [
+            "warn"
+        ],
+        "keyword-spacing": [
+            "error",
+            {
+                "overrides": {
+                    "import": {
+                        "before": false
+                    },
+                    "export": {
+                        "before": false
+                    }
+                }
+            }
+        ],
+        "space-before-function-paren": [
+            "error",
+            {
+                "anonymous": "always",
+                "named": "never",
+                "asyncArrow": "always"
+            }
+        ],
+        "quote-props": [
+            "error",
+            "consistent-as-needed"
+        ],
+        "curly": [
+            "error",
+            "all"
+        ],
+        "object-curly-spacing": [
+            "error",
+            "always"
+        ],
+        "comma-spacing": [
+            "error",
+            {
+                "before": false,
+                "after": true
+            }
+        ],
+        "brace-style": [
+            "error",
+            "1tbs"
+        ],
+        "key-spacing": [
+            "error",
+            {
+                "beforeColon": false,
+                "afterColon": true
+            }
+        ],
+        "template-curly-spacing": [
+            "error",
+            "never"
+        ],
+        "block-spacing": [
+            "error",
+            "always"
+        ],
+        "space-in-parens": [
+            "error",
+            "never"
+        ],
+        "space-infix-ops": [
+            "error"
+        ],
+        "space-before-blocks": [
+            "error"
+        ],
+        "valid-jsdoc": [
+            "error" // we should put it back to warn once we have time to cleanup the existing JSDoc
+        ]
     }
 }

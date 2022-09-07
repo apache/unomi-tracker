@@ -6,12 +6,13 @@ export const newTracker = () => {
          * This function initialize the tracker
          *
          * @param {object} digitalData config of the tracker
+         * @returns {undefined}
          */
         initTracker: function (digitalData) {
             wem.digitalData = digitalData;
-            wem.trackerProfileIdCookieName =  wem.digitalData.wemInitConfig.trackerProfileIdCookieName ?  wem.digitalData.wemInitConfig.trackerProfileIdCookieName : "wem-profile-id";
-            wem.trackerSessionIdCookieName =  wem.digitalData.wemInitConfig.trackerSessionIdCookieName ?  wem.digitalData.wemInitConfig.trackerSessionIdCookieName : "wem-session-id";
-            wem.browserGeneratedSessionSuffix =  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix ?  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix : "";
+            wem.trackerProfileIdCookieName =  wem.digitalData.wemInitConfig.trackerProfileIdCookieName ?  wem.digitalData.wemInitConfig.trackerProfileIdCookieName : 'wem-profile-id';
+            wem.trackerSessionIdCookieName =  wem.digitalData.wemInitConfig.trackerSessionIdCookieName ?  wem.digitalData.wemInitConfig.trackerSessionIdCookieName : 'wem-session-id';
+            wem.browserGeneratedSessionSuffix =  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix ?  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix : '';
             wem.disableTrackedConditionsListeners =  wem.digitalData.wemInitConfig.disableTrackedConditionsListeners;
             wem.activateWem = wem.digitalData.wemInitConfig.activateWem;
 
@@ -36,6 +37,7 @@ export const newTracker = () => {
          * Note: that the tracker will start once the current DOM is complete loaded, using listener on current document: DOMContentLoaded
          *
          * @param {object[]} digitalDataOverrides optional, list of digitalData extensions, they will be merged with original digitalData before context loading
+         * @returns {undefined}
          */
         startTracker: function (digitalDataOverrides = undefined) {
             // Check before start
@@ -63,7 +65,7 @@ export const newTracker = () => {
                 }
 
                 if (!wem.disableTrackedConditionsListeners) {
-                    wem._registerListenersForTrackedConditions()
+                    wem._registerListenersForTrackedConditions();
                 }
             }, 'Default tracker callback', 0);
 
@@ -132,49 +134,20 @@ export const newTracker = () => {
 
         /**
          * Get current session id
-         * @returns {null|*}
+         * @returns {null|string} get current session id
          */
         getSessionId: function () {
             return wem.sessionID;
         },
 
-        convertUrlParametersToObj: function (searchString) {
-            if (!searchString) {
-                return null;
-            }
-
-            return searchString
-                .replace(/^\?/, '') // Only trim off a single leading interrobang.
-                .split('&')
-                .reduce((result, next) => {
-                        if (next === '') {
-                            return result;
-                        }
-                        let pair = next.split('=');
-                        let key = decodeURIComponent(pair[0]);
-                        let value = typeof pair[1] !== 'undefined' && decodeURIComponent(pair[1]) || undefined;
-                        if (Object.prototype.hasOwnProperty.call(result, key)) { // Check to see if this property has been met before.
-                            if (Array.isArray(result[key])) { // Is it already an array?
-                                result[key].push(value);
-                            } else { // Make it an array.
-                                result[key] = [result[key], value];
-                            }
-                        } else { // First time seen, just add it.
-                            result[key] = value;
-                        }
-
-                        return result;
-                    }, {}
-                );
-        },
-
         /**
          * This function will register a personalization
          *
-         * @param {object} personalization
-         * @param {object} variants
+         * @param {object} personalization the personalization object
+         * @param {object} variants the variants
          * @param {boolean} [ajax] Deprecated: Ajax rendering is not supported anymore
-         * @param {function} [resultCallback]
+         * @param {function} [resultCallback] the callback to be executed after personalization resolved
+         * @returns {undefined}
          */
         registerPersonalizationObject: function (personalization, variants, ajax, resultCallback) {
             var target = personalization.id;
@@ -242,12 +215,13 @@ export const newTracker = () => {
         /**
          * This function will register an optimization test or A/B test
          *
-         * @param {string} optimizationTestNodeId
-         * @param {string} goalId
-         * @param {string} containerId
-         * @param {object} variants
+         * @param {string} optimizationTestNodeId the optimization test node id
+         * @param {string} goalId the associated goal Id
+         * @param {string} containerId the HTML container Id
+         * @param {object} variants the variants
          * @param {boolean} [ajax] Deprecated: Ajax rendering is not supported anymore
-         * @param {object} [variantsTraffic]
+         * @param {object} [variantsTraffic] the associated traffic allocation
+         * @return {undefined}
          */
         registerOptimizationTest: function (optimizationTestNodeId, goalId, containerId, variants, ajax, variantsTraffic) {
 
@@ -310,6 +284,7 @@ export const newTracker = () => {
          *
          * @param {boolean} [skipEvents=false] Should we send the events
          * @param {boolean} [invalidate=false] Should we invalidate the current context
+         * @return {undefined}
          */
         loadContext: function (skipEvents, invalidate) {
             if (wem.contextLoaded) {
@@ -360,6 +335,7 @@ export const newTracker = () => {
          * @param {object} event The event object to send, you can build it using wem.buildEvent(eventType, target, source)
          * @param {function} successCallback will be executed in case of success
          * @param {function} errorCallback will be executed in case of error
+         * @return {undefined}
          */
         collectEvent: function (event, successCallback, errorCallback) {
             wem.collectEvents({ events: [event] }, successCallback, errorCallback);
@@ -371,6 +347,7 @@ export const newTracker = () => {
          * @param {object} events Javascript object { events: [event1, event2] }
          * @param {function} successCallback will be executed in case of success
          * @param {function} errorCallback will be executed in case of error
+         * @return {undefined}
          */
         collectEvents: function (events, successCallback, errorCallback) {
             if (wem.fallback) {
@@ -399,6 +376,7 @@ export const newTracker = () => {
          * @param {object} event javascript
          * @param {function} [successCallback] will be executed if case of success
          * @param {function} [errorCallback] will be executed if case of error
+         * @return {undefined}
          */
         sendClickEvent: function (event, successCallback, errorCallback) {
             if (event.target.id || event.target.name) {
@@ -443,6 +421,7 @@ export const newTracker = () => {
          * @param {object} event javascript
          * @param {function} [successCallback] will be executed if case of success
          * @param {function} [errorCallback] will be executed if case of error
+         * @return {undefined}
          */
         sendVideoEvent: function (event, successCallback, errorCallback) {
             console.info('[WEM] catching video event');
@@ -465,6 +444,7 @@ export const newTracker = () => {
          * This function will invalidate the Apache Unomi session and profile,
          * by removing the associated cookies, set the loaded context to undefined
          * and set the session id cookie with a newly generated ID
+         * @return {undefined}
          */
         invalidateSessionAndProfile: function () {
             'use strict';
@@ -481,7 +461,7 @@ export const newTracker = () => {
          * @param {string} eventType The name of your event
          * @param {object} [target] The target object for your event can be build with wem.buildTarget(targetId, targetType, targetProperties)
          * @param {object} [source] The source object for your event can be build with wem.buildSource(sourceId, sourceType, sourceProperties)
-         * @returns {{eventType: *, scope}}
+         * @returns {object} the event
          */
         buildEvent: function (eventType, target, source) {
             var event = {
@@ -504,7 +484,7 @@ export const newTracker = () => {
          * This function return an event of type form
          *
          * @param {string} formName The HTML name of id of the form to use in the target of the event
-         * @returns {*|{eventType: *, scope, source: {scope, itemId: string, itemType: string, properties: {}}, target: {scope, itemId: string, itemType: string, properties: {}}}}
+         * @returns {object} the form event
          */
         buildFormEvent: function (formName) {
             return wem.buildEvent('form', wem.buildTarget(formName, 'form'), wem.buildSourcePage());
@@ -513,7 +493,7 @@ export const newTracker = () => {
         /**
          * This function return the source object for a source of type page
          *
-         * @returns {*|{scope, itemId: *, itemType: *}}
+         * @returns {object} the target page
          */
         buildTargetPage: function () {
             return wem.buildTarget(wem.digitalData.page.pageInfo.pageID, 'page', wem.digitalData.page);
@@ -522,7 +502,7 @@ export const newTracker = () => {
         /**
          * This function return the source object for a source of type page
          *
-         * @returns {*|{scope, itemId: *, itemType: *}}
+         * @returns {object} the source page
          */
         buildSourcePage: function () {
             return wem.buildSource(wem.digitalData.page.pageInfo.pageID, 'page', wem.digitalData.page);
@@ -534,7 +514,7 @@ export const newTracker = () => {
          * @param {string} targetId The ID of the target
          * @param {string} targetType The type of the target
          * @param {object} [targetProperties] The optional properties of the target
-         * @returns {{scope, itemId: *, itemType: *}}
+         * @returns {object} the target
          */
         buildTarget: function (targetId, targetType, targetProperties) {
             return wem._buildObject(targetId, targetType, targetProperties);
@@ -546,7 +526,7 @@ export const newTracker = () => {
          * @param {string} sourceId The ID of the source
          * @param {string} sourceType The type of the source
          * @param {object} [sourceProperties] The optional properties of the source
-         * @returns {{scope, itemId: *, itemType: *}}
+         * @returns {object} the source
          */
         buildSource: function (sourceId, sourceType, sourceProperties) {
             return wem._buildObject(sourceId, sourceType, sourceProperties);
@@ -562,6 +542,7 @@ export const newTracker = () => {
          * @param {string} cookieName name of the cookie
          * @param {string} cookieValue value of the cookie
          * @param {number} [expireDays] number of days to set the expire date
+         * @return {undefined}
          */
         setCookie: function (cookieName, cookieValue, expireDays) {
             var expires = '';
@@ -577,7 +558,7 @@ export const newTracker = () => {
          * This is an utility function to get a cookie
          *
          * @param {string} cookieName name of the cookie to get
-         * @returns {*} the value of the first cookie with the corresponding name or null if not found
+         * @returns {string} the value of the first cookie with the corresponding name or null if not found
          */
         getCookie: function (cookieName) {
             var name = cookieName + '=';
@@ -598,6 +579,7 @@ export const newTracker = () => {
          * This is an utility function to remove a cookie
          *
          * @param {string} cookieName the name of the cookie to rename
+         * @return {undefined}
          */
         removeCookie: function (cookieName) {
             'use strict';
@@ -607,7 +589,8 @@ export const newTracker = () => {
         /**
          * This is an utility function to execute AJAX call
          *
-         * @param {object} options
+         * @param {object} options options of the request
+         * @return {undefined}
          */
         ajax: function (options) {
             var xhr = new XMLHttpRequest();
@@ -677,7 +660,7 @@ export const newTracker = () => {
         /**
          * This is an utility function to generate a new UUID
          *
-         * @returns {string}
+         * @returns {string} the newly generated UUID
          */
         generateGuid: function () {
             function s4() {
@@ -692,8 +675,8 @@ export const newTracker = () => {
 
         /**
          * This is an utility function to check if the local storage is available or not
-         * @param type
-         * @returns {boolean}
+         * @param {string} type the type of storage to test
+         * @returns {boolean} true in case storage is available, false otherwise
          */
         storageAvailable: function (type) {
             try {
@@ -707,6 +690,15 @@ export const newTracker = () => {
             }
         },
 
+        /**
+         * Dispatch a JavaScript event in current HTML document
+         *
+         * @param {string} name the name of the event
+         * @param {boolean} canBubble does the event can bubble ?
+         * @param {boolean} cancelable is the event cancelable ?
+         * @param {*} detail event details
+         * @return {undefined}
+         */
         dispatchJSEvent: function (name, canBubble, cancelable, detail) {
             var event = document.createEvent('CustomEvent');
             event.initCustomEvent(name, canBubble, cancelable, detail);
@@ -715,8 +707,9 @@ export const newTracker = () => {
 
         /**
          * This is an utility function to get current url parameter value
-         * @param name, the name of the parameter
-         * @returns {string}
+         *
+         * @param {string} name, the name of the parameter
+         * @returns {string} the value of the parameter
          */
         getUrlParameter: function (name) {
             name = name.replace(/[[]/, '\\[').replace(/[\]]/, '\\]');
@@ -725,9 +718,52 @@ export const newTracker = () => {
             return results === null ? null : decodeURIComponent(results[1].replace(/\+/g, ' '));
         },
 
+        /**
+         * convert the passed query string into JS object.
+         * @param {string} searchString The URL query string
+         * @returns {object} converted URL params
+         */
+        convertUrlParametersToObj: function (searchString) {
+            if (!searchString) {
+                return null;
+            }
+
+            return searchString
+                .replace(/^\?/, '') // Only trim off a single leading interrobang.
+                .split('&')
+                .reduce((result, next) => {
+                    if (next === '') {
+                        return result;
+                    }
+                    let pair = next.split('=');
+                    let key = decodeURIComponent(pair[0]);
+                    let value = typeof pair[1] !== 'undefined' && decodeURIComponent(pair[1]) || undefined;
+                    if (Object.prototype.hasOwnProperty.call(result, key)) { // Check to see if this property has been met before.
+                        if (Array.isArray(result[key])) { // Is it already an array?
+                            result[key].push(value);
+                        } else { // Make it an array.
+                            result[key] = [result[key], value];
+                        }
+                    } else { // First time seen, just add it.
+                        result[key] = value;
+                    }
+
+                    return result;
+                }, {}
+                );
+        },
+
         /*************************************/
         /* Private functions under this line */
         /*************************************/
+        /**
+         * Used to override the default digitalData values,
+         * the result will impact directly the current instance wem.digitalData
+         *
+         * @param {object[]} digitalDataOverrides list of overrides
+         * @private
+         * @return {undefined}
+         */
         _handleDigitalDataOverrides: function (digitalDataOverrides) {
             if (digitalDataOverrides && digitalDataOverrides.length > 0) {
                 for (const digitalDataOverride of digitalDataOverrides) {
@@ -736,6 +772,15 @@ export const newTracker = () => {
             }
         },
 
+        /**
+         * Check for tracked conditions in the current loaded context, and attach listeners for the known tracked condition types:
+         * - formEventCondition
+         * - videoViewEventCondition
+         * - clickOnLinkEventCondition
+         *
+         * @private
+         * @return {undefined}
+         */
         _registerListenersForTrackedConditions: function () {
             console.info('[WEM] Check for tracked conditions and attach related HTML listeners');
 
@@ -803,6 +848,12 @@ export const newTracker = () => {
             }
         },
 
+        /**
+         * Check for currently registered events in wem.digitalData.events that would be incomplete:
+         * - autocomplete the event with the current digitalData page infos for the source
+         * @private
+         * @return {undefined}
+         */
         _checkUncompleteRegisteredEvents: function () {
             if (wem.digitalData && wem.digitalData.events) {
                 for (const event of wem.digitalData.events) {
@@ -811,6 +862,11 @@ export const newTracker = () => {
             }
         },
 
+        /**
+         * dispatch JavaScript event in current HTML document for perso and opti events contains in digitalData.events
+         * @private
+         * @return {undefined}
+         */
         _dispatchJSExperienceDisplayedEvents: () => {
             if (wem.digitalData && wem.digitalData.events) {
                 for (const event of wem.digitalData.events) {
@@ -821,6 +877,12 @@ export const newTracker = () => {
             }
         },
 
+        /**
+         * build and dispatch JavaScript event in current HTML document for the given Unomi event (perso/opti)
+         * @private
+         * @param {object} experienceUnomiEvent perso/opti Unomi event
+         * @return {undefined}
+         */
         _dispatchJSExperienceDisplayedEvent: experienceUnomiEvent => {
             if (!wem.fallback &&
                 experienceUnomiEvent &&
@@ -858,6 +920,12 @@ export const newTracker = () => {
             }
         },
 
+        /**
+         * Filter events in digitalData.events that would have the property: event.properties.doNotSendToUnomi
+         * The effect is directly stored in a new version of wem.digitalData.events
+         * @private
+         * @return {undefined}
+         */
         _filterUnomiEvents: () => {
             if (wem.digitalData && wem.digitalData.events) {
                 wem.digitalData.events = wem.digitalData.events
@@ -871,6 +939,14 @@ export const newTracker = () => {
             }
         },
 
+        /**
+         * Check if event is incomplete and complete what is missing:
+         * - source: if missing, use the current source page
+         * - scope: if missing, use the current scope
+         * @param {object} event, the event to be checked
+         * @private
+         * @return {object} the complete event
+         */
         _completeEvent: function (event) {
             if (!event.source) {
                 event.source = wem.buildSourcePage();
@@ -884,6 +960,18 @@ export const newTracker = () => {
             return event;
         },
 
+        /**
+         * Register an event in the wem.digitalData.events.
+         * Registered event, will be sent automatically during the context loading process.
+         *
+         * Beware this function is useless in case the context is already loaded.
+         * in case the context is already loaded (check: wem.getLoadedContext()), then you should use: wem.collectEvent(s) functions
+         *
+         * @private
+         * @param {object} event the Unomi event to be registered
+         * @param {boolean} unshift if true, the event will be added at the beginning of the list otherwise at the end of the list.
+         * @return {undefined}
+         */
         _registerEvent: function (event, unshift) {
             if (wem.digitalData) {
                 if (wem.cxs) {
@@ -904,10 +992,12 @@ export const newTracker = () => {
 
         /**
          * This function allow for registering callback that will be executed once the context is loaded.
-         * @param onLoadCallback the callback to be executed
-         * @param name optional name for the call, used mostly for logging the execution
-         * @param priority optional priority to execute the callbacks in a specific order (default: 5, to leave room for the tracker default callback(s))
+         * @param {function} onLoadCallback the callback to be executed
+         * @param {string} name optional name for the call, used mostly for logging the execution
+         * @param {number} priority optional priority to execute the callbacks in a specific order
+         *                          (default: 5, to leave room for the tracker default callback(s))
          * @private
+         * @return {undefined}
          */
         _registerCallback: function (onLoadCallback, name = undefined, priority = 5) {
             if (wem.digitalData) {
@@ -942,6 +1032,13 @@ export const newTracker = () => {
             }
         },
 
+        /**
+         * Internal function for personalization specific callbacks (used for HTML dom manipulation once we get the context loaded)
+         * @param {object} personalization the personalization
+         * @param {function} callback the callback
+         * @private
+         * @return {undefined}
+         */
         _registerPersonalizationCallback: function (personalization, callback) {
             if (wem.digitalData) {
                 if (wem.cxs) {
@@ -958,6 +1055,14 @@ export const newTracker = () => {
             }
         },
 
+        /**
+         * Build a simple Unomi object
+         * @param {string} itemId the itemId of the object
+         * @param {string} itemType the itemType of the object
+         * @param {object} properties optional properties for the object
+         * @private
+         * @return {object} the built Unomi JSON object
+         */
         _buildObject: function (itemId, itemType, properties) {
             var object = {
                 scope: wem.digitalData.scope,
@@ -972,6 +1077,12 @@ export const newTracker = () => {
             return object;
         },
 
+        /**
+         * Main callback used once the Ajax context request succeed
+         * @param {XMLHttpRequest} xhr the request
+         * @private
+         * @return {undefined}
+         */
         _onSuccess: function (xhr) {
             wem.cxs = JSON.parse(xhr.responseText);
 
@@ -989,6 +1100,12 @@ export const newTracker = () => {
             window.wemLoaded = true;
         },
 
+        /**
+         * Main callback used once the Ajax context request failed
+         * @param {string} logMessage the log message, to identify the place of failure
+         * @private
+         * @return {undefined}
+         */
         _executeFallback: function (logMessage) {
             console.warn('[WEM] execute fallback' + (logMessage ? (': ' + logMessage) : '') + ', load fallback callbacks, calling now...');
             wem.fallback = true;
@@ -1002,17 +1119,28 @@ export const newTracker = () => {
             }
         },
 
-        _executeLoadCallbacks: function(callbackParam) {
+        /**
+         * Executed the registered context loaded callbacks
+         * @param {*} callbackParam param of the callbacks
+         * @private
+         * @return {undefined}
+         */
+        _executeLoadCallbacks: function (callbackParam) {
             if (wem.digitalData.loadCallbacks && wem.digitalData.loadCallbacks.length > 0) {
                 wem.digitalData.loadCallbacks
                     .sort((a, b) => a.priority - b.priority)
                     .forEach(loadCallback => {
                         console.info('[WEM] executing context load callback: ' + (loadCallback.name ? loadCallback.name : 'callback without name'));
-                        loadCallback.execute(callbackParam)
+                        loadCallback.execute(callbackParam);
                     });
             }
         },
 
+        /**
+         * Parse current HTML document referrer information to enrich the digitalData page infos
+         * @private
+         * @return {undefined}
+         */
         _processReferrer: function () {
             var referrerURL = wem.digitalData.page.pageInfo.referringURL || document.referrer;
             var sameDomainReferrer = false;
@@ -1053,6 +1181,15 @@ export const newTracker = () => {
             wem.digitalData.page.pageInfo.sameDomainReferrer = sameDomainReferrer;
         },
 
+        /**
+         * Listener callback that can be attached to a specific HTML form,
+         * this listener will automatically send the form event to Unomi, by parsing the HTML form data.
+         * (NOTE: the form listener only work for know forms to be watch due to tracked conditions)
+         *
+         * @param {object} event the original HTML form submition event for the watch form.
+         * @private
+         * @return {undefined}
+         */
         _formSubmitEventListener: function (event) {
             console.info('[WEM] Registering form event callback');
             var form = event.target;
@@ -1096,6 +1233,13 @@ export const newTracker = () => {
             }
         },
 
+        /**
+         * Utility function to extract data from an HTML form.
+         *
+         * @param {HTMLFormElement} form the HTML form element
+         * @private
+         * @return {object} the form data as JSON
+         */
         _extractFormData: function (form) {
             var params = {};
             for (var i = 0; i < form.elements.length; i++) {
@@ -1151,8 +1295,14 @@ export const newTracker = () => {
             return params;
         },
 
+        /**
+         * Internal function used for mapping ids when current HTML document ids doesn't match ids stored in Unomi backend
+         * @param {string} id the id to resolve
+         * @return {string} the resolved id or the original id if not match found
+         * @private
+         */
         _resolveId: function (id) {
-            if (wem.digitalData.sourceLocalIdentifierMap){
+            if (wem.digitalData.sourceLocalIdentifierMap) {
                 var source = Object.keys(wem.digitalData.sourceLocalIdentifierMap).filter(function (source) {
                     return id.indexOf(source) > 0;
                 });
@@ -1161,6 +1311,13 @@ export const newTracker = () => {
             return id;
         },
 
+        /**
+         * Enable or disable tracking in current page
+         * @param {boolean} enable true will enable the tracking feature, otherwise they will be disabled
+         * @param {function} callback an optional callback that can be used to perform additional logic based on enabling/disabling results
+         * @private
+         * @return {undefined}
+         */
         _enableWem: (enable, callback) => {
             // display fallback if wem is not enable
             wem.fallback = !enable;
@@ -1180,11 +1337,18 @@ export const newTracker = () => {
             }
 
             if (callback) {
-                callback(enable)
+                callback(enable);
             }
             console.log(`[WEM] successfully ${enable ? 'enabled' : 'disabled'} tracking in current page`);
         },
 
+        /**
+         * Utility function used to merge two JSON object together (arrays are concat for example)
+         * @param {object} source the source object for merge
+         * @param {object} target the target object for merge
+         * @private
+         * @return {object} the merged results
+         */
         _deepMergeObjects: function (source, target) {
             if (!wem._isObject(target) || !wem._isObject(source)) {
                 return source;
@@ -1207,10 +1371,22 @@ export const newTracker = () => {
             return target;
         },
 
+        /**
+         * Utility function used to check if the given variable is a JavaScript object.
+         * @param {*} obj the variable to check
+         * @private
+         * @return {boolean} true if the variable is an object, false otherwise
+         */
         _isObject: function (obj) {
             return obj && typeof obj === 'object';
         },
 
+        /**
+         * Utility function used to check if the current id is contains in any Unomi control group
+         * @param {string} id the id to check
+         * @private
+         * @return {boolean} true if the id is found in a control group, false otherwise
+         */
         _isInControlGroup: function (id) {
             if (wem.cxs.profileProperties && wem.cxs.profileProperties.unomiControlGroups) {
                 let controlGroup = wem.cxs.profileProperties.unomiControlGroups.find(controlGroup => controlGroup.id === id);
@@ -1226,7 +1402,7 @@ export const newTracker = () => {
             }
             return false;
         }
-    }
+    };
 
     return wem;
 };

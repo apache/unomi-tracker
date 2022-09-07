@@ -15,9 +15,9 @@
  * limitations under the License.
  */
 
-const assert = require('assert')
+const assert = require('assert');
 const unomi = require('..');
 const tracker = unomi.useTracker();
 
-assert(tracker !== null)
-console.log(`Tests passed`);
+assert(tracker !== null);
+console.log('Tests passed');

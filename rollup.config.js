@@ -1,35 +1,35 @@
-import resolve from "@rollup/plugin-node-resolve";
-import commonjs from "@rollup/plugin-commonjs";
-import babel from "@rollup/plugin-babel";
-import pkg from "./package.json";
+import resolve from '@rollup/plugin-node-resolve';
+import commonjs from '@rollup/plugin-commonjs';
+import babel from '@rollup/plugin-babel';
+import pkg from './package.json';
 
 export default [
     {
-        input: "src/index.js",
+        input: 'src/index.js',
         output: {
             name: pkg.name,
             file: pkg.browser,
-            format: "umd",
+            format: 'umd',
         },
         plugins: [
             resolve(),
             commonjs(),
             babel({
                 babelHelpers: 'runtime',
-                exclude: ["node_modules/**"],
+                exclude: ['node_modules/**'],
             }),
         ],
     },
     {
-        input: "src/index.js",
+        input: 'src/index.js',
         output: [
-            { file: pkg.main, format: "cjs" },
-            { file: pkg.module, format: "es" },
+            { file: pkg.main, format: 'cjs' },
+            { file: pkg.module, format: 'es' },
         ],
         plugins: [
             babel({
                 babelHelpers: 'runtime',
-                exclude: ["node_modules/**"],
+                exclude: ['node_modules/**'],
             }),
         ],
         external: id => id.includes('@babel/runtime')

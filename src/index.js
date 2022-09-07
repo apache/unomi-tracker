@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import {newTracker} from "./tracker/tracker";
+import { newTracker } from './tracker/tracker';
 
 export const useTracker = () => {
     return newTracker();
