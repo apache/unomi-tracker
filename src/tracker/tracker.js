@@ -897,11 +897,19 @@ export const newTracker = () => {
             }
         },
 
-        _registerCallback: function (onLoadCallback, name = "", priority = 0) {
+        /**
+         * This function allow for registering callback that will be executed once the context is loaded.
+         * @param onLoadCallback the callback to be executed
+         * @param name optional name for the call, used mostly for logging the execution
+         * @param priority optional priority to execute the callbacks in a specific order (default: 5, to leave room for the tracker default callback(s))
+         * @private
+         */
+        _registerCallback: function (onLoadCallback, name = undefined, priority = 5) {
             if (wem.digitalData) {
                 if (wem.cxs) {
                     console.info('[WEM] digitalData object loaded, calling on load callback immediately and registering update callback...');
                     if (onLoadCallback) {
+                        console.warn('[WEM] executing context load callback: ' + (name ? name : 'Callback without name'));
                         onLoadCallback(wem.digitalData);
                     }
                 } else {
@@ -909,8 +917,8 @@ export const newTracker = () => {
                     if (onLoadCallback) {
                         wem.digitalData.loadCallbacks = wem.digitalData.loadCallbacks || [];
                         wem.digitalData.loadCallbacks.push({
-                            priority: priority,
-                            name: name,
+                            priority,
+                            name,
                             execute: onLoadCallback
                         });
                     }
@@ -921,8 +929,8 @@ export const newTracker = () => {
                 if (onLoadCallback) {
                     wem.digitalData.loadCallbacks = [];
                     wem.digitalData.loadCallbacks.push({
-                        priority: priority,
-                        name: name,
+                        priority,
+                        name,
                         execute: onLoadCallback
                     });
                 }
