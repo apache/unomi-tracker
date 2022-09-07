@@ -981,15 +981,24 @@ var newTracker = function newTracker() {
         wem.digitalData.events.push(event);
       }
     },
+
+    /**
+     * This function allow for registering callback that will be executed once the context is loaded.
+     * @param onLoadCallback the callback to be executed
+     * @param name optional name for the call, used mostly for logging the execution
+     * @param priority optional priority to execute the callbacks in a specific order (default: 5, to leave room for the tracker default callback(s))
+     * @private
+     */
     _registerCallback: function _registerCallback(onLoadCallback) {
-      var name = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "";
-      var priority = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 0;
+      var name = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : undefined;
+      var priority = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 5;
 
       if (wem.digitalData) {
         if (wem.cxs) {
           console.info('[WEM] digitalData object loaded, calling on load callback immediately and registering update callback...');
 
           if (onLoadCallback) {
+            console.warn('[WEM] executing context load callback: ' + (name ? name : 'Callback without name'));
             onLoadCallback(wem.digitalData);
           }
         } else {
