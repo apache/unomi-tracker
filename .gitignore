@@ -264,7 +264,6 @@ GitHub.sublime-settings
 .stylelintcache
 
 storybook-static/
-dist/
 
 yalc.lock
 .yalc
