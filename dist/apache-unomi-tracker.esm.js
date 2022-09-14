@@ -308,10 +308,16 @@ var newTracker = function newTracker() {
      *
      * @param {boolean} [skipEvents=false] Should we send the events
      * @param {boolean} [invalidate=false] Should we invalidate the current context
+     * @param {boolean} [forceReload=false] This function contains an internal check to avoid loading of the context multiple times.
+     *                                      But in some rare cases, it could be useful to force the reloading of the context and bypass the check.
      * @return {undefined}
      */
-    loadContext: function loadContext(skipEvents, invalidate) {
-      if (wem.contextLoaded) {
+    loadContext: function loadContext() {
+      var skipEvents = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
+      var invalidate = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+      var forceReload = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+
+      if (wem.contextLoaded && !forceReload) {
         console.log('Context already requested by', wem.contextLoaded);
         return;
       }
