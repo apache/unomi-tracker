@@ -529,10 +529,16 @@ var newTracker = function newTracker() {
      * This function return an event of type form
      *
      * @param {string} formName The HTML name of id of the form to use in the target of the event
+     * @param {HTMLFormElement} form optional HTML form element, if provided will be used to extract the form fields and populate the form event
      * @returns {object} the form event
      */
     buildFormEvent: function buildFormEvent(formName) {
-      return wem.buildEvent('form', wem.buildTarget(formName, 'form'), wem.buildSourcePage());
+      var form = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : undefined;
+      var formEvent = wem.buildEvent('form', wem.buildTarget(formName, 'form'), wem.buildSourcePage());
+      formEvent.flattenedProperties = {
+        fields: form ? wem._extractFormData(form) : {}
+      };
+      return formEvent;
     },
 
     /**
@@ -1331,12 +1337,7 @@ var newTracker = function newTracker() {
         eventCopy.initEvent('submit', event.bubbles, event.cancelable);
         event.stopImmediatePropagation();
         event.preventDefault();
-        var formEvent = wem.buildFormEvent(formName); // merge form properties with event properties
-
-        formEvent.flattenedProperties = {
-          fields: wem._extractFormData(form)
-        };
-        wem.collectEvent(formEvent, function () {
+        wem.collectEvent(wem.buildFormEvent(formName, form), function () {
           form.removeEventListener('submit', wem._formSubmitEventListener, true);
           form.dispatchEvent(eventCopy);
 
