@@ -352,11 +352,11 @@ export const newTracker = () => {
         /**
          * This function will send an event to Apache Unomi
          * @param {object} event The event object to send, you can build it using wem.buildEvent(eventType, target, source)
-         * @param {function} successCallback will be executed in case of success
-         * @param {function} errorCallback will be executed in case of error
+         * @param {function} successCallback optional, will be executed in case of success
+         * @param {function} errorCallback optional, will be executed in case of error
          * @return {undefined}
          */
-        collectEvent: function (event, successCallback, errorCallback) {
+        collectEvent: function (event, successCallback = undefined, errorCallback = undefined) {
             wem.collectEvents({ events: [event] }, successCallback, errorCallback);
         },
 
@@ -364,13 +364,13 @@ export const newTracker = () => {
          * This function will send the events to Apache Unomi
          *
          * @param {object} events Javascript object { events: [event1, event2] }
-         * @param {function} successCallback will be executed in case of success
-         * @param {function} errorCallback will be executed in case of error
+         * @param {function} successCallback optional, will be executed in case of success
+         * @param {function} errorCallback optional, will be executed in case of error
          * @return {undefined}
          */
-        collectEvents: function (events, successCallback, errorCallback) {
+        collectEvents: function (events, successCallback = undefined, errorCallback = undefined) {
             if (wem.fallback) {
-                // in case of fallback we dont want to collect any events
+                // in case of fallback we don't want to collect any events
                 return;
             }
 
@@ -393,11 +393,11 @@ export const newTracker = () => {
          * This function will build an event of type click and send it to Apache Unomi
          *
          * @param {object} event javascript
-         * @param {function} [successCallback] will be executed if case of success
-         * @param {function} [errorCallback] will be executed if case of error
+         * @param {function} [successCallback] optional, will be executed if case of success
+         * @param {function} [errorCallback] optional, will be executed if case of error
          * @return {undefined}
          */
-        sendClickEvent: function (event, successCallback, errorCallback) {
+        sendClickEvent: function (event, successCallback = undefined, errorCallback = undefined) {
             if (event.target.id || event.target.name) {
                 console.info('[WEM] Send click event');
                 var targetId = event.target.id ? event.target.id : event.target.name;
@@ -438,11 +438,11 @@ export const newTracker = () => {
          * This function will build an event of type video and send it to Apache Unomi
          *
          * @param {object} event javascript
-         * @param {function} [successCallback] will be executed if case of success
-         * @param {function} [errorCallback] will be executed if case of error
+         * @param {function} [successCallback] optional, will be executed if case of success
+         * @param {function} [errorCallback] optional, will be executed if case of error
          * @return {undefined}
          */
-        sendVideoEvent: function (event, successCallback, errorCallback) {
+        sendVideoEvent: function (event, successCallback = undefined, errorCallback = undefined) {
             console.info('[WEM] catching video event');
             var videoEvent = wem.buildEvent('video', wem.buildTarget(event.target.id, 'video', { action: event.type }), wem.buildSourcePage());
 
