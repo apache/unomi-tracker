@@ -376,11 +376,13 @@ var newTracker = function newTracker() {
     /**
      * This function will send an event to Apache Unomi
      * @param {object} event The event object to send, you can build it using wem.buildEvent(eventType, target, source)
-     * @param {function} successCallback will be executed in case of success
-     * @param {function} errorCallback will be executed in case of error
+     * @param {function} successCallback optional, will be executed in case of success
+     * @param {function} errorCallback optional, will be executed in case of error
      * @return {undefined}
      */
-    collectEvent: function collectEvent(event, successCallback, errorCallback) {
+    collectEvent: function collectEvent(event) {
+      var successCallback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : undefined;
+      var errorCallback = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
       wem.collectEvents({
         events: [event]
       }, successCallback, errorCallback);
@@ -390,13 +392,16 @@ var newTracker = function newTracker() {
      * This function will send the events to Apache Unomi
      *
      * @param {object} events Javascript object { events: [event1, event2] }
-     * @param {function} successCallback will be executed in case of success
-     * @param {function} errorCallback will be executed in case of error
+     * @param {function} successCallback optional, will be executed in case of success
+     * @param {function} errorCallback optional, will be executed in case of error
      * @return {undefined}
      */
-    collectEvents: function collectEvents(events, successCallback, errorCallback) {
+    collectEvents: function collectEvents(events) {
+      var successCallback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : undefined;
+      var errorCallback = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
+
       if (wem.fallback) {
-        // in case of fallback we dont want to collect any events
+        // in case of fallback we don't want to collect any events
         return;
       }
 
@@ -419,11 +424,14 @@ var newTracker = function newTracker() {
      * This function will build an event of type click and send it to Apache Unomi
      *
      * @param {object} event javascript
-     * @param {function} [successCallback] will be executed if case of success
-     * @param {function} [errorCallback] will be executed if case of error
+     * @param {function} [successCallback] optional, will be executed if case of success
+     * @param {function} [errorCallback] optional, will be executed if case of error
      * @return {undefined}
      */
-    sendClickEvent: function sendClickEvent(event, successCallback, errorCallback) {
+    sendClickEvent: function sendClickEvent(event) {
+      var successCallback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : undefined;
+      var errorCallback = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
+
       if (event.target.id || event.target.name) {
         console.info('[WEM] Send click event');
         var targetId = event.target.id ? event.target.id : event.target.name;
@@ -461,11 +469,13 @@ var newTracker = function newTracker() {
      * This function will build an event of type video and send it to Apache Unomi
      *
      * @param {object} event javascript
-     * @param {function} [successCallback] will be executed if case of success
-     * @param {function} [errorCallback] will be executed if case of error
+     * @param {function} [successCallback] optional, will be executed if case of success
+     * @param {function} [errorCallback] optional, will be executed if case of error
      * @return {undefined}
      */
-    sendVideoEvent: function sendVideoEvent(event, successCallback, errorCallback) {
+    sendVideoEvent: function sendVideoEvent(event) {
+      var successCallback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : undefined;
+      var errorCallback = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
       console.info('[WEM] catching video event');
       var videoEvent = wem.buildEvent('video', wem.buildTarget(event.target.id, 'video', {
         action: event.type
@@ -529,10 +539,16 @@ var newTracker = function newTracker() {
      * This function return an event of type form
      *
      * @param {string} formName The HTML name of id of the form to use in the target of the event
+     * @param {HTMLFormElement} form optional HTML form element, if provided will be used to extract the form fields and populate the form event
      * @returns {object} the form event
      */
     buildFormEvent: function buildFormEvent(formName) {
-      return wem.buildEvent('form', wem.buildTarget(formName, 'form'), wem.buildSourcePage());
+      var form = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : undefined;
+      var formEvent = wem.buildEvent('form', wem.buildTarget(formName, 'form'), wem.buildSourcePage());
+      formEvent.flattenedProperties = {
+        fields: form ? wem._extractFormData(form) : {}
+      };
+      return formEvent;
     },
 
     /**
@@ -1331,12 +1347,7 @@ var newTracker = function newTracker() {
         eventCopy.initEvent('submit', event.bubbles, event.cancelable);
         event.stopImmediatePropagation();
         event.preventDefault();
-        var formEvent = wem.buildFormEvent(formName); // merge form properties with event properties
-
-        formEvent.flattenedProperties = {
-          fields: wem._extractFormData(form)
-        };
-        wem.collectEvent(formEvent, function () {
+        wem.collectEvent(wem.buildFormEvent(formName, form), function () {
           form.removeEventListener('submit', wem._formSubmitEventListener, true);
           form.dispatchEvent(eventCopy);
 
