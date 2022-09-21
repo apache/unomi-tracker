@@ -18,6 +18,7 @@
 Apache Unomi tracker
 ============
 - [Apache Unomi website](https://unomi.apache.org)
+- [Apache Unomi Documentation](https://unomi.apache.org/manual/latest/)
 - [Versioning and release process](RELEASE.md)
 
 A JavaScript tracker library for Apache Unomi.
