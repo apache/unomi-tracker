@@ -26,7 +26,8 @@
     "@rollup/plugin-node-resolve": "^13.3.0",
     "eslint": "^8.23.0",
     "eslint-plugin-json": "^3.1.0",
-    "rollup": "^2.79.0"
+    "rollup": "^2.79.0",
+    "rollup-plugin-license": "^2.8.1"
   },
   "dependencies": {
     "@babel/runtime": "^7.18.9",
