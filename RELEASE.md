@@ -46,10 +46,10 @@ Start the release process:
 - Check version and create Git tag:
   - Check `package.json` is using correct version: `1.1.0`
   - Create Git tag: `git tag -s v1.1.0 -m 'create v1.1.0 tag'` (`-s` is used for signing using your local git GPG config)
-  - Push the tag: `git push origin v1.1.0`: push the git tag
+  - Push the tag: `git push origin v1.1.0`
 - Sign the package and upload the package to Apache SVN. 
-  - Download the `.tar.gz` tag from git
-  - Sign the package: `gpg -ab unomi-tracker-1.1.0.tar.gz`
+  - Download the `.tar.gz` source package from Git previously created tag.
+  - Sign the package: `gpg -ab unomi-tracker-1.1.0.tar.gz`.
   - Verify the signature: `gpg --verify unomi-tracker-1.1.0.tar.gz.asc unomi-tracker-1.1.0.tar.gz` (Check that the signature is correctly using your Apache signature)
   - SHA the package: `shasum -a 512 unomi-tracker-1.1.0.tar.gz > unomi-tracker-1.1.0.tar.gz.sha512`
   - Upload the 3 files (`.tar.gz`, `.tar.gz.asc`, `.tar.gz.sha512`) to Apache SVN: `https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/1.1.0`
