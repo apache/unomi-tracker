@@ -2,7 +2,7 @@
   "name": "apache-unomi-tracker",
   "repository": "apache/unomi-tracker",
   "author": "unomi <dev@unomi.apache.org>",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0",
   "description": "A web tracker for Apache Unomi",
   "main": "dist/apache-unomi-tracker.cjs.js",
   "module": "dist/apache-unomi-tracker.esm.js",
