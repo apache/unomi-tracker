@@ -26,23 +26,39 @@ Current repository is using Trunk based development.
 - `1_x`: Used for maintenance branches of previous versions
 - `UNOMI-XXX`: feature or bug fix branches used to create pull request targeting the `main` branch
 
-Npm account
+Release example for 1.1.0
 -------
-- Create an account on NpmJS registry: https://www.npmjs.com/
-- Ask on Apache Unomi dev mailing list (dev@unomi.apache.org) to be added as a maintainer for the package to be able to push versions
-- Login locally: `npm login` and your credentials
-
-Push a new version
--------
-- Bump version in the `main` branch: `1.0.0` -> `1.1.0` or for beta version `1.0.0-beta.0` -> `1.0.0-beta.1`, run:
-  - `npm version 3.1.0-beta.1`: to update `package.json` and create a git tag in one go (see https://docs.npmjs.com/cli/version).
-  - `git push origin main`: push the version update
-  - `git push origin 3.1.0-beta.1`: push the git tag
-- Run checks:
+Checks before starting the release process:
+- Check headers and licenses
+- Check your GPG configuration is correct ! it will be required for signing the package.
+  - Follow: https://infra.apache.org/release-signing.html
+  - And: https://unomi.apache.org/contribute/release-guide.html
+- Check that you are logged into npm and you have permission to publish the package:
+  - Create an account on NpmJS registry: https://www.npmjs.com/
+  - Ask on Apache Unomi dev mailing list (dev@unomi.apache.org) to be added as a maintainer for the package to be able to push versions
+  - Login locally: `npm login` and your credentials
+- Do a final local check:
   - `yarn lint`: ensure linter checks are passing
   - `yarn test`: ensure tests are passing
   - `yarn build`: ensure build is passing
-- Publish on npm the package, run:
-  - in case of normal version: `npm publish`
-  - in case of beta version: `npm publish --tag beta`
-- Create the release on GitHub for this tag (in case version is not beta).
+
+Start the release process:
+- Check version and create Git tag:
+  - Check `package.json` is using correct version: `1.1.0`
+  - Create Git tag: `git tag -s v1.1.0 -m 'create v1.1.0 tag'` (`-s` is used for signing using your local git GPG config)
+  - Push the tag: `git push origin v1.1.0`: push the git tag
+- Sign the package and upload the package to Apache SVN. 
+  - Download the `.tar.gz` tag from git
+  - Sign the package: `gpg -ab unomi-tracker-1.1.0.tar.gz`
+  - Verify the signature: `gpg --verify unomi-tracker-1.1.0.tar.gz.asc unomi-tracker-1.1.0.tar.gz` (Check that the signature is correctly using your Apache signature)
+  - SHA the package: `shasum -a 512 unomi-tracker-1.1.0.tar.gz > unomi-tracker-1.1.0.tar.gz.sha512`
+  - Upload the 3 files (`.tar.gz`, `.tar.gz.asc`, `.tar.gz.sha512`) to Apache SVN: `https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/1.1.0`
+    (Create the folder if it doesn't exist)
+- Start voting process, follow Unomi documentation it's the same: https://unomi.apache.org/contribute/release-guide.html
+- Wait for the vote to finnish then finalize the release on Apache side:
+  - move `https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/1.1.0` to `https://dist.apache.org/repos/dist/release/unomi/unomi-tracker/1.1.0`
+  - in JIRA mark the version `unomi-tracker-1.1.0` as released and add a release date
+- Publish the release package to NPM:
+  - Download the Apache released package: `https://dist.apache.org/repos/dist/release/unomi/unomi-tracker/1.1.0/unomi-tracker-1.1.0.tar.gz`
+  - Untar the package and publish the package by running: `npm publish`
+- You can set the next version into `package.json` like `1.2.0` for example.
