@@ -1,0 +1,12 @@
+/test
+/src
+.DS_Store
+Thumbs.db
+Desktop.ini
+babel.config.json
+rollup.config.js
+unomi-tracker.iml
+LICENSE_HEADER
+RELEASE.md
+# Hidden files
+.*
