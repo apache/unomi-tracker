@@ -18,7 +18,9 @@
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import babel from '@rollup/plugin-babel';
+import license from 'rollup-plugin-license';
 import pkg from './package.json';
+import * as path from 'path';
 
 export default [
     {
@@ -29,6 +31,15 @@ export default [
             format: 'umd',
         },
         plugins: [
+            license({
+                banner: {
+                    commentStyle: 'regular',
+                    content: {
+                        // eslint-disable-next-line no-undef
+                        file: path.join(__dirname, 'LICENSE_HEADER')
+                    }
+                }
+            }),
             resolve(),
             commonjs(),
             babel({
@@ -44,11 +55,20 @@ export default [
             { file: pkg.module, format: 'es' },
         ],
         plugins: [
+            license({
+                banner: {
+                    commentStyle: 'regular',
+                    content: {
+                        // eslint-disable-next-line no-undef
+                        file: path.join(__dirname, 'LICENSE_HEADER')
+                    }
+                }
+            }),
             babel({
                 babelHelpers: 'runtime',
                 exclude: ['node_modules/**'],
             }),
         ],
-        external: id => id.includes('@babel/runtime')
+        external: id => id === 'es6-crawler-detect' || id.includes('@babel/runtime')
     },
 ];
