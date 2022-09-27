@@ -798,6 +798,19 @@ var newTracker = function newTracker() {
     },
 
     /**
+     * Fill the window.digitalData.displayedVariants with the javascript event passed as parameter
+     * @param jsEvent javascript event
+     * @private
+     */
+    _fillDisplayedVariants: function _fillDisplayedVariants(jsEvent) {
+      if (!window.digitalData.displayedVariants) {
+        window.digitalData.displayedVariants = [];
+      }
+
+      window.digitalData.displayedVariants.push(jsEvent);
+    },
+
+    /**
      * This is an utility function to get current url parameter value
      *
      * @param {string} name, the name of the parameter
@@ -1048,6 +1061,13 @@ var newTracker = function newTracker() {
                 nodeType: experienceUnomiEvent.target.properties.nodeType
               }
             };
+
+            if (experienceUnomiEvent.eventType === 'personalizationEvent') {
+              jsEventDetail.inControlGroup = variant.inControlGroup;
+            }
+
+            wem._fillDisplayedVariants(jsEventDetail);
+
             wem.dispatchJSEvent('displayWemVariant', false, false, jsEventDetail);
           }
         } catch (err) {

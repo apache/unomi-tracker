@@ -728,7 +728,18 @@ export const newTracker = () => {
             event.initCustomEvent(name, canBubble, cancelable, detail);
             document.dispatchEvent(event);
         },
-
+        /**
+         * Fill the window.digitalData.displayedVariants with the javascript event passed as parameter
+         * @param {object} jsEvent javascript event
+         * @private
+         * @return {undefined}
+         */
+        _fillDisplayedVariants: (jsEvent) => {
+            if (!window.digitalData.displayedVariants) {
+                window.digitalData.displayedVariants = [];
+            }
+            window.digitalData.displayedVariants.push(jsEvent);
+        },
         /**
          * This is an utility function to get current url parameter value
          *
@@ -939,11 +950,14 @@ export const newTracker = () => {
                         }
                     };
 
+                    if (experienceUnomiEvent.eventType === 'personalizationEvent') {
+                        jsEventDetail.inControlGroup = variant.inControlGroup;
+                    }
+                    wem._fillDisplayedVariants(jsEventDetail);
                     wem.dispatchJSEvent('displayWemVariant', false, false, jsEventDetail);
                 }
             }
         },
-
         /**
          * Filter events in digitalData.events that would have the property: event.properties.doNotSendToUnomi
          * The effect is directly stored in a new version of wem.digitalData.events
