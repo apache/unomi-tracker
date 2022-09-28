@@ -791,15 +791,16 @@ var newTracker = function newTracker() {
 
     /**
      * Fill the window.digitalData.displayedVariants with the javascript event passed as parameter
-     * @param jsEvent javascript event
+     * @param {object} jsEvent javascript event
      * @private
+     * @return {undefined}
      */
     _fillDisplayedVariants: function _fillDisplayedVariants(jsEvent) {
-      if (!window.digitalData.displayedVariants) {
-        window.digitalData.displayedVariants = [];
+      if (!wem.digitalData.displayedVariants) {
+        wem.digitalData.displayedVariants = [];
       }
 
-      window.digitalData.displayedVariants.push(jsEvent);
+      wem.digitalData.displayedVariants.push(jsEvent);
     },
 
     /**

@@ -735,10 +735,10 @@ export const newTracker = () => {
          * @return {undefined}
          */
         _fillDisplayedVariants: (jsEvent) => {
-            if (!window.digitalData.displayedVariants) {
-                window.digitalData.displayedVariants = [];
+            if (!wem.digitalData.displayedVariants) {
+                wem.digitalData.displayedVariants = [];
             }
-            window.digitalData.displayedVariants.push(jsEvent);
+            wem.digitalData.displayedVariants.push(jsEvent);
         },
         /**
          * This is an utility function to get current url parameter value
