@@ -790,7 +790,7 @@ var newTracker = function newTracker() {
     },
 
     /**
-     * Fill the window.digitalData.displayedVariants with the javascript event passed as parameter
+     * Fill the wem.digitalData.displayedVariants with the javascript event passed as parameter
      * @param {object} jsEvent javascript event
      * @private
      * @return {undefined}
@@ -1056,7 +1056,7 @@ var newTracker = function newTracker() {
             };
 
             if (experienceUnomiEvent.eventType === 'personalizationEvent') {
-              jsEventDetail.inControlGroup = variant.inControlGroup;
+              jsEventDetail.wrapper.inControlGroup = experienceUnomiEvent.target.properties.inControlGroup;
             }
 
             wem._fillDisplayedVariants(jsEventDetail);
