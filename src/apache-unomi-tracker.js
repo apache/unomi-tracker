@@ -169,19 +169,27 @@ export const newTracker = () => {
         registerPersonalizationObject: function (personalization, variants, ajax, resultCallback) {
             var target = personalization.id;
             wem._registerPersonalizationCallback(personalization, function (result) {
-                var successfulFilters = [];
-                for (var i = 0; i < result.length; i++) {
-                    successfulFilters.push(variants[result[i]]);
-                }
-
                 var selectedFilter = null;
-                if (successfulFilters.length > 0) {
-                    selectedFilter = successfulFilters[0];
-                    var minPos = successfulFilters[0].position;
-                    if (minPos >= 0) {
-                        for (var j = 1; j < successfulFilters.length; j++) {
-                            if (successfulFilters[j].position < minPos) {
-                                selectedFilter = successfulFilters[j];
+                var successfulFilters = [];
+
+                var inControlGroup = wem._isInControlGroup(target);
+                // In case of control group Unomi is not resolving any strategy or fallback for us. So we have to do the fallback here.
+                if (inControlGroup && personalization.strategyOptions && personalization.strategyOptions.fallback) {
+                    selectedFilter = variants[personalization.strategyOptions.fallback];
+                    successfulFilters.push(selectedFilter);
+                } else {
+                    for (var i = 0; i < result.length; i++) {
+                        successfulFilters.push(variants[result[i]]);
+                    }
+
+                    if (successfulFilters.length > 0) {
+                        selectedFilter = successfulFilters[0];
+                        var minPos = successfulFilters[0].position;
+                        if (minPos >= 0) {
+                            for (var j = 1; j < successfulFilters.length; j++) {
+                                if (successfulFilters[j].position < minPos) {
+                                    selectedFilter = successfulFilters[j];
+                                }
                             }
                         }
                     }
@@ -201,7 +209,7 @@ export const newTracker = () => {
                         }
 
                         // we now add control group information to event if the user is in the control group.
-                        if (wem._isInControlGroup(target)) {
+                        if (inControlGroup) {
                             console.info('[WEM] Profile is in control group for target: ' + target + ', adding to personalization event...');
                             selectedFilter.event.target.properties.inControlGroup = true;
                             if (selectedFilter.event.target.properties.variants) {
