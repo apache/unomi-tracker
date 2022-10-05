@@ -2445,6 +2445,20 @@
       },
 
       /**
+       * Fill the wem.digitalData.displayedVariants with the javascript event passed as parameter
+       * @param {object} jsEvent javascript event
+       * @private
+       * @return {undefined}
+       */
+      _fillDisplayedVariants: function _fillDisplayedVariants(jsEvent) {
+        if (!wem.digitalData.displayedVariants) {
+          wem.digitalData.displayedVariants = [];
+        }
+
+        wem.digitalData.displayedVariants.push(jsEvent);
+      },
+
+      /**
        * This is an utility function to get current url parameter value
        *
        * @param {string} name, the name of the parameter
@@ -2695,6 +2709,13 @@
                   nodeType: experienceUnomiEvent.target.properties.nodeType
                 }
               };
+
+              if (experienceUnomiEvent.eventType === 'personalizationEvent') {
+                jsEventDetail.wrapper.inControlGroup = experienceUnomiEvent.target.properties.inControlGroup;
+              }
+
+              wem._fillDisplayedVariants(jsEventDetail);
+
               wem.dispatchJSEvent('displayWemVariant', false, false, jsEventDetail);
             }
           } catch (err) {
