@@ -1836,12 +1836,10 @@
       registerPersonalizationObject: function registerPersonalizationObject(personalization, variants, ajax, resultCallback) {
         var target = personalization.id;
 
-        wem._registerPersonalizationCallback(personalization, function (result) {
+        wem._registerPersonalizationCallback(personalization, function (result, advancedResult) {
           var selectedFilter = null;
           var successfulFilters = [];
-
-          var inControlGroup = wem._isInControlGroup(target); // In case of control group Unomi is not resolving any strategy or fallback for us. So we have to do the fallback here.
-
+          var inControlGroup = advancedResult && advancedResult.additionalResultInfos && advancedResult.additionalResultInfos.inControlGroup; // In case of control group Unomi is not resolving any strategy or fallback for us. So we have to do the fallback here.
 
           if (inControlGroup && personalization.strategyOptions && personalization.strategyOptions.fallback) {
             selectedFilter = variants[personalization.strategyOptions.fallback];
@@ -2926,7 +2924,7 @@
 
           if (wem.digitalData.personalizationCallback) {
             for (var j = 0; j < wem.digitalData.personalizationCallback.length; j++) {
-              wem.digitalData.personalizationCallback[j].callback(wem.cxs.personalizations[wem.digitalData.personalizationCallback[j].personalization.id]);
+              wem.digitalData.personalizationCallback[j].callback(wem.cxs.personalizations[wem.digitalData.personalizationCallback[j].personalization.id], wem.cxs.personalizationResults ? wem.cxs.personalizationResults[wem.digitalData.personalizationCallback[j].personalization.id] : undefined);
             }
           }
         }
@@ -3222,36 +3220,6 @@
        */
       _isObject: function _isObject(obj) {
         return obj && _typeof(obj) === 'object';
-      },
-
-      /**
-       * Utility function used to check if the current id is contains in any Unomi control group
-       * @param {string} id the id to check
-       * @private
-       * @return {boolean} true if the id is found in a control group, false otherwise
-       */
-      _isInControlGroup: function _isInControlGroup(id) {
-        if (wem.cxs.profileProperties && wem.cxs.profileProperties.unomiControlGroups) {
-          var controlGroup = wem.cxs.profileProperties.unomiControlGroups.find(function (controlGroup) {
-            return controlGroup.id === id;
-          });
-
-          if (controlGroup) {
-            return true;
-          }
-        }
-
-        if (wem.cxs.sessionProperties && wem.cxs.sessionProperties.unomiControlGroups) {
-          var _controlGroup = wem.cxs.sessionProperties.unomiControlGroups.find(function (controlGroup) {
-            return controlGroup.id === id;
-          });
-
-          if (_controlGroup) {
-            return true;
-          }
-        }
-
-        return false;
       }
     };
     return wem;
