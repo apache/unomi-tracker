@@ -1279,7 +1279,7 @@ var newTracker = function newTracker() {
           for (var j = 0; j < wem.digitalData.personalizationCallback.length; j++) {
             if (wem.cxs.personalizationResults) {
               // Since Unomi 2.1.0 personalization results are available with more infos
-              var personalizationResult = wem.cxs.personalizations[wem.digitalData.personalizationCallback[j].personalization.id];
+              var personalizationResult = wem.cxs.personalizationResults[wem.digitalData.personalizationCallback[j].personalization.id];
               wem.digitalData.personalizationCallback[j].callback(personalizationResult.contentIds, personalizationResult.additionalResultInfos);
             } else {
               // probably a version older than Unomi 2.1.0, fallback to old personalization results
