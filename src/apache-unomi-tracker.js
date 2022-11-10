@@ -168,11 +168,11 @@ export const newTracker = () => {
          */
         registerPersonalizationObject: function (personalization, variants, ajax, resultCallback) {
             var target = personalization.id;
-            wem._registerPersonalizationCallback(personalization, function (result, advancedResult) {
+            wem._registerPersonalizationCallback(personalization, function (result, additionalResultInfos) {
                 var selectedFilter = null;
                 var successfulFilters = [];
 
-                var inControlGroup = advancedResult && advancedResult.additionalResultInfos && advancedResult.additionalResultInfos.inControlGroup;
+                var inControlGroup = additionalResultInfos && additionalResultInfos.inControlGroup;
                 // In case of control group Unomi is not resolving any strategy or fallback for us. So we have to do the fallback here.
                 if (inControlGroup && personalization.strategyOptions && personalization.strategyOptions.fallback) {
                     selectedFilter = variants[personalization.strategyOptions.fallback];
@@ -1141,10 +1141,14 @@ export const newTracker = () => {
 
                 if (wem.digitalData.personalizationCallback) {
                     for (var j = 0; j < wem.digitalData.personalizationCallback.length; j++) {
-                        wem.digitalData.personalizationCallback[j].callback(
-                            wem.cxs.personalizations[wem.digitalData.personalizationCallback[j].personalization.id],
-                            wem.cxs.personalizationResults ? wem.cxs.personalizationResults[wem.digitalData.personalizationCallback[j].personalization.id] : undefined
-                        );
+                        if (wem.cxs.personalizationResults) {
+                            // Since Unomi 2.1.0 personalization results are available with more infos
+                            var personalizationResult = wem.cxs.personalizations[wem.digitalData.personalizationCallback[j].personalization.id];
+                            wem.digitalData.personalizationCallback[j].callback(personalizationResult.contentIds, personalizationResult.additionalResultInfos);
+                        } else {
+                            // probably a version older than Unomi 2.1.0, fallback to old personalization results
+                            wem.digitalData.personalizationCallback[j].callback(wem.cxs.personalizations[wem.digitalData.personalizationCallback[j].personalization.id]);
+                        }
                     }
                 }
             }
