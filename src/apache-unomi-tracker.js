@@ -288,11 +288,6 @@ export const newTracker = () => {
                 wem._registerEvent(wem._completeEvent(variants[selectedVariantId].event));
             }
 
-            //Trigger variant display event for optimization
-            // (Wrapped in DOMContentLoaded because opti are resulted synchronously at page load, so we dispatch the JS even after page load, to be sure that listeners are ready)
-            window.addEventListener('DOMContentLoaded', () => {
-                wem._dispatchJSExperienceDisplayedEvent(variants[selectedVariantId].event);
-            });
             if (selectedVariantId) {
                 // update persona panel selected variant
                 if (window.optimizedContentAreas && window.optimizedContentAreas[optimizationTestNodeId]) {
