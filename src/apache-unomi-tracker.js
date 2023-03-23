@@ -606,7 +606,7 @@ export const newTracker = () => {
 
         /**
          * This is an utility function to remove a cookie
-         * removeCookie
+         *
          * @param {string} cookieName the name of the cookie to rename
          * @return {undefined}
          */
