@@ -572,13 +572,15 @@ export const newTracker = () => {
          * @return {undefined}
          */
         setCookie: function (cookieName, cookieValue, expireDays) {
-            var expires = '';
+            let expires = '';
             if (expireDays) {
                 var d = new Date();
                 d.setTime(d.getTime() + (expireDays * 24 * 60 * 60 * 1000));
                 expires = '; expires=' + d.toUTCString();
             }
-            document.cookie = cookieName + '=' + cookieValue + expires + '; path=/; SameSite=Strict';
+
+            let secure = location.protocol === 'https:' ? '; secure' : '';
+            document.cookie = cookieName + '=' + cookieValue + expires + '; path=/; SameSite=Strict' + secure;
         },
 
         /**
@@ -1367,8 +1369,8 @@ export const newTracker = () => {
             // remove cookies, reset cxs
             if (!enable) {
                 wem.cxs = {};
-                document.cookie = wem.trackerProfileIdCookieName + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-                document.cookie = wem.contextServerCookieName + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                wem.removeCookie(wem.contextServerCookieName);
+                wem.removeCookie(wem.trackerProfileIdCookieName);
                 delete wem.contextLoaded;
             } else {
                 if (wem.DOMLoaded) {
