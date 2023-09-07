@@ -293,9 +293,7 @@ var newTracker = function newTracker() {
       } // select random variant and call unomi
 
 
-      var selectVariant = variants[selectedVariantId];
-
-      if (!(selectedVariantId && selectVariant)) {
+      if (!(selectedVariantId && variants[selectedVariantId])) {
         var keys = Object.keys(variants);
 
         if (variantsTraffic) {
@@ -314,11 +312,12 @@ var newTracker = function newTracker() {
           sessionStorage.setItem(optimizationTestNodeId, selectedVariantId);
         } else {
           wem.setCookie('selectedVariantId', selectedVariantId, 1);
-        } // spread event to unomi
+        }
 
+        var variant = variants[selectedVariantId]; // spread event to unomi
 
-        if (selectVariant.event) {
-          wem._registerEvent(wem._completeEvent(selectVariant.event));
+        if (variant.event) {
+          wem._registerEvent(wem._completeEvent(variant.event));
         }
       }
 
@@ -329,7 +328,7 @@ var newTracker = function newTracker() {
         } // display the good variant
 
 
-        document.getElementById(selectVariant.content).style.display = '';
+        document.getElementById(variants[selectedVariantId].content).style.display = '';
       }
     },
 

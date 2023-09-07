@@ -267,8 +267,7 @@ export const newTracker = () => {
             }
 
             // select random variant and call unomi
-            let selectVariant = variants[selectedVariantId];
-            if (!(selectedVariantId && selectVariant)) {
+            if (!(selectedVariantId && variants[selectedVariantId])) {
                 var keys = Object.keys(variants);
                 if (variantsTraffic) {
                     var rand = 100 * Math.random() << 0;
@@ -285,10 +284,10 @@ export const newTracker = () => {
                 } else {
                     wem.setCookie('selectedVariantId', selectedVariantId, 1);
                 }
-
+                const variant = variants[selectedVariantId];
                 // spread event to unomi
-                if (selectVariant.event) {
-                    wem._registerEvent(wem._completeEvent(selectVariant.event));
+                if (variant.event) {
+                    wem._registerEvent(wem._completeEvent(variant.event));
                 }
             }
 
@@ -299,7 +298,7 @@ export const newTracker = () => {
                 }
 
                 // display the good variant
-                document.getElementById(selectVariant.content).style.display = '';
+                document.getElementById(variants[selectedVariantId].content).style.display = '';
             }
         },
 
