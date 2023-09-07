@@ -207,25 +207,26 @@ export const newTracker = () => {
                                 filter.style.display = (filter.id === selectedFilter.content) ? '' : 'none';
                             }
                         }
-
-                        // we now add control group information to event if the user is in the control group.
-                        if (inControlGroup) {
-                            console.info('[WEM] Profile is in control group for target: ' + target + ', adding to personalization event...');
-                            selectedFilter.event.target.properties.inControlGroup = true;
-                            if (selectedFilter.event.target.properties.variants) {
-                                selectedFilter.event.target.properties.variants.forEach(variant => variant.inControlGroup = true);
+                        if (selectedFilter.event) {
+                            // we now add control group information to event if the user is in the control group.
+                            if (inControlGroup) {
+                                console.info('[WEM] Profile is in control group for target: ' + target + ', adding to personalization event...');
+                                selectedFilter.event.target.properties.inControlGroup = true;
+                                if (selectedFilter.event.target.properties.variants) {
+                                    selectedFilter.event.target.properties.variants.forEach(variant => variant.inControlGroup = true);
+                                }
                             }
+
+                            // send event to unomi
+                            wem.collectEvent(wem._completeEvent(selectedFilter.event), function () {
+                                console.info('[WEM] Personalization event successfully collected.');
+                            }, function () {
+                                console.error('[WEM] Could not send personalization event.');
+                            });
+
+                            //Trigger variant display event for personalization
+                            wem._dispatchJSExperienceDisplayedEvent(selectedFilter.event);
                         }
-
-                        // send event to unomi
-                        wem.collectEvent(wem._completeEvent(selectedFilter.event), function () {
-                            console.info('[WEM] Personalization event successfully collected.');
-                        }, function () {
-                            console.error('[WEM] Could not send personalization event.');
-                        });
-
-                        //Trigger variant display event for personalization
-                        wem._dispatchJSExperienceDisplayedEvent(selectedFilter.event);
                     } else {
                         var elements = document.getElementById(target).children;
                         for (var eIndex in elements) {
@@ -266,7 +267,8 @@ export const newTracker = () => {
             }
 
             // select random variant and call unomi
-            if (!(selectedVariantId && variants[selectedVariantId])) {
+            let selectVariant = variants[selectedVariantId];
+            if (!(selectedVariantId && selectVariant)) {
                 var keys = Object.keys(variants);
                 if (variantsTraffic) {
                     var rand = 100 * Math.random() << 0;
@@ -285,7 +287,9 @@ export const newTracker = () => {
                 }
 
                 // spread event to unomi
-                wem._registerEvent(wem._completeEvent(variants[selectedVariantId].event));
+                if (selectVariant.event) {
+                    wem._registerEvent(wem._completeEvent(selectVariant.event));
+                }
             }
 
             if (selectedVariantId) {
@@ -295,7 +299,7 @@ export const newTracker = () => {
                 }
 
                 // display the good variant
-                document.getElementById(variants[selectedVariantId].content).style.display = '';
+                document.getElementById(selectVariant.content).style.display = '';
             }
         },
 

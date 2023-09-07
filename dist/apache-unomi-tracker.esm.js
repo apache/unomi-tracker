@@ -221,28 +221,30 @@ var newTracker = function newTracker() {
               if (filter) {
                 filter.style.display = filter.id === selectedFilter.content ? '' : 'none';
               }
-            } // we now add control group information to event if the user is in the control group.
+            }
+
+            if (selectedFilter.event) {
+              // we now add control group information to event if the user is in the control group.
+              if (inControlGroup) {
+                console.info('[WEM] Profile is in control group for target: ' + target + ', adding to personalization event...');
+                selectedFilter.event.target.properties.inControlGroup = true;
+
+                if (selectedFilter.event.target.properties.variants) {
+                  selectedFilter.event.target.properties.variants.forEach(function (variant) {
+                    return variant.inControlGroup = true;
+                  });
+                }
+              } // send event to unomi
 
 
-            if (inControlGroup) {
-              console.info('[WEM] Profile is in control group for target: ' + target + ', adding to personalization event...');
-              selectedFilter.event.target.properties.inControlGroup = true;
+              wem.collectEvent(wem._completeEvent(selectedFilter.event), function () {
+                console.info('[WEM] Personalization event successfully collected.');
+              }, function () {
+                console.error('[WEM] Could not send personalization event.');
+              }); //Trigger variant display event for personalization
 
-              if (selectedFilter.event.target.properties.variants) {
-                selectedFilter.event.target.properties.variants.forEach(function (variant) {
-                  return variant.inControlGroup = true;
-                });
-              }
-            } // send event to unomi
-
-
-            wem.collectEvent(wem._completeEvent(selectedFilter.event), function () {
-              console.info('[WEM] Personalization event successfully collected.');
-            }, function () {
-              console.error('[WEM] Could not send personalization event.');
-            }); //Trigger variant display event for personalization
-
-            wem._dispatchJSExperienceDisplayedEvent(selectedFilter.event);
+              wem._dispatchJSExperienceDisplayedEvent(selectedFilter.event);
+            }
           } else {
             var elements = document.getElementById(target).children;
 
@@ -283,7 +285,9 @@ var newTracker = function newTracker() {
       } // select random variant and call unomi
 
 
-      if (!(selectedVariantId && variants[selectedVariantId])) {
+      var selectVariant = variants[selectedVariantId];
+
+      if (!(selectedVariantId && selectVariant)) {
         var keys = Object.keys(variants);
 
         if (variantsTraffic) {
@@ -305,7 +309,9 @@ var newTracker = function newTracker() {
         } // spread event to unomi
 
 
-        wem._registerEvent(wem._completeEvent(variants[selectedVariantId].event));
+        if (selectVariant.event) {
+          wem._registerEvent(wem._completeEvent(selectVariant.event));
+        }
       }
 
       if (selectedVariantId) {
@@ -315,7 +321,7 @@ var newTracker = function newTracker() {
         } // display the good variant
 
 
-        document.getElementById(variants[selectedVariantId].content).style.display = '';
+        document.getElementById(selectVariant.content).style.display = '';
       }
     },
 
@@ -626,7 +632,8 @@ var newTracker = function newTracker() {
         expires = '; expires=' + d.toUTCString();
       }
 
-      document.cookie = cookieName + '=' + cookieValue + expires + '; path=/; SameSite=Strict';
+      var secure = location.protocol === 'https:' ? '; secure' : '';
+      document.cookie = cookieName + '=' + cookieValue + expires + '; path=/; SameSite=Strict' + secure;
     },
 
     /**
@@ -1512,8 +1519,8 @@ var newTracker = function newTracker() {
 
       if (!enable) {
         wem.cxs = {};
-        document.cookie = wem.trackerProfileIdCookieName + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-        document.cookie = wem.contextServerCookieName + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        wem.removeCookie(wem.contextServerCookieName);
+        wem.removeCookie(wem.trackerProfileIdCookieName);
         delete wem.contextLoaded;
       } else {
         if (wem.DOMLoaded) {
