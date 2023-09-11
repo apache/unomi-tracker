@@ -207,25 +207,26 @@ export const newTracker = () => {
                                 filter.style.display = (filter.id === selectedFilter.content) ? '' : 'none';
                             }
                         }
-
-                        // we now add control group information to event if the user is in the control group.
-                        if (inControlGroup) {
-                            console.info('[WEM] Profile is in control group for target: ' + target + ', adding to personalization event...');
-                            selectedFilter.event.target.properties.inControlGroup = true;
-                            if (selectedFilter.event.target.properties.variants) {
-                                selectedFilter.event.target.properties.variants.forEach(variant => variant.inControlGroup = true);
+                        if (selectedFilter.event) {
+                            // we now add control group information to event if the user is in the control group.
+                            if (inControlGroup) {
+                                console.info('[WEM] Profile is in control group for target: ' + target + ', adding to personalization event...');
+                                selectedFilter.event.target.properties.inControlGroup = true;
+                                if (selectedFilter.event.target.properties.variants) {
+                                    selectedFilter.event.target.properties.variants.forEach(variant => variant.inControlGroup = true);
+                                }
                             }
+
+                            // send event to unomi
+                            wem.collectEvent(wem._completeEvent(selectedFilter.event), function () {
+                                console.info('[WEM] Personalization event successfully collected.');
+                            }, function () {
+                                console.error('[WEM] Could not send personalization event.');
+                            });
+
+                            //Trigger variant display event for personalization
+                            wem._dispatchJSExperienceDisplayedEvent(selectedFilter.event);
                         }
-
-                        // send event to unomi
-                        wem.collectEvent(wem._completeEvent(selectedFilter.event), function () {
-                            console.info('[WEM] Personalization event successfully collected.');
-                        }, function () {
-                            console.error('[WEM] Could not send personalization event.');
-                        });
-
-                        //Trigger variant display event for personalization
-                        wem._dispatchJSExperienceDisplayedEvent(selectedFilter.event);
                     } else {
                         var elements = document.getElementById(target).children;
                         for (var eIndex in elements) {
@@ -283,9 +284,11 @@ export const newTracker = () => {
                 } else {
                     wem.setCookie('selectedVariantId', selectedVariantId, 1);
                 }
-
+                const variant = variants[selectedVariantId];
                 // spread event to unomi
-                wem._registerEvent(wem._completeEvent(variants[selectedVariantId].event));
+                if (variant.event) {
+                    wem._registerEvent(wem._completeEvent(variant.event));
+                }
             }
 
             if (selectedVariantId) {
