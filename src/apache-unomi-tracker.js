@@ -519,7 +519,20 @@ export const newTracker = () => {
             };
             return formEvent;
         },
+        buildSearchEvent: function (formName, form, term, language) {
+            const searchEvent = wem.buildEvent('search', wem.buildTarget(formName, 'search'), wem.buildSourcePage());
+            searchEvent.flattenedProperties = {
+                fields: form ? wem._extractFormData(form) : {}
+            };
 
+            searchEvent.properties = {
+                originForm: formName,
+                language: language || 'en',
+                keyword: term,
+                origin: searchEvent.source.properties.pageInfo.pagePath
+            };
+            return searchEvent;
+        },
         /**
          * This function return the source object for a source of type page
          *
