@@ -1881,7 +1881,7 @@
               if (selectedFilter.event) {
                 // we now add control group information to event if the user is in the control group.
                 if (inControlGroup) {
-                  console.info('[WEM] Profile is in control group for target: ' + target + ', adding to personalization event...');
+                  console.debug('[WEM] Profile is in control group for target: ' + target + ', adding to personalization event...');
                   selectedFilter.event.target.properties.inControlGroup = true;
 
                   if (selectedFilter.event.target.properties.variants) {
@@ -1893,7 +1893,7 @@
 
 
                 wem.collectEvent(wem._completeEvent(selectedFilter.event), function () {
-                  console.info('[WEM] Personalization event successfully collected.');
+                  console.debug('[WEM] Personalization event successfully collected.');
                 }, function () {
                   console.error('[WEM] Could not send personalization event.');
                 }); //Trigger variant display event for personalization
@@ -2101,7 +2101,7 @@
         var errorCallback = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
 
         if (event.target.id || event.target.name) {
-          console.info('[WEM] Send click event');
+          console.debug('[WEM] Send click event');
           var targetId = event.target.id ? event.target.id : event.target.name;
           var clickEvent = wem.buildEvent('click', wem.buildTarget(targetId, event.target.localName), wem.buildSourcePage());
           var eventIndex = wem.eventsPrevented.indexOf(targetId);
@@ -2113,7 +2113,7 @@
             event.preventDefault();
             var target = event.target;
             wem.collectEvent(clickEvent, function (xhr) {
-              console.info('[WEM] Click event successfully collected.');
+              console.debug('[WEM] Click event successfully collected.');
 
               if (successCallback) {
                 successCallback(xhr);
@@ -2144,12 +2144,12 @@
       sendVideoEvent: function sendVideoEvent(event) {
         var successCallback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : undefined;
         var errorCallback = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
-        console.info('[WEM] catching video event');
+        console.debug('[WEM] catching video event');
         var videoEvent = wem.buildEvent('video', wem.buildTarget(event.target.id, 'video', {
           action: event.type
         }), wem.buildSourcePage());
         wem.collectEvent(videoEvent, function (xhr) {
-          console.info('[WEM] Video event successfully collected.');
+          console.debug('[WEM] Video event successfully collected.');
 
           if (successCallback) {
             successCallback(xhr);
@@ -2569,7 +2569,7 @@
        * @return {undefined}
        */
       _registerListenersForTrackedConditions: function _registerListenersForTrackedConditions() {
-        console.info('[WEM] Check for tracked conditions and attach related HTML listeners');
+        console.debug('[WEM] Check for tracked conditions and attach related HTML listeners');
         var videoNamesToWatch = [];
         var clickToWatch = [];
 
@@ -2608,7 +2608,7 @@
 
           if (formName && wem.formNamesToWatch.indexOf(formName) > -1 && form.getAttribute('data-form-id') == null) {
             // add submit listener on form that we need to watch only
-            console.info('[WEM] Watching form ' + formName);
+            console.debug('[WEM] Watching form ' + formName);
             form.addEventListener('submit', wem._formSubmitEventListener, true);
           }
         }
@@ -2620,7 +2620,7 @@
           if (video) {
             video.addEventListener('play', wem.sendVideoEvent);
             video.addEventListener('ended', wem.sendVideoEvent);
-            console.info('[WEM] Watching video ' + videoName);
+            console.debug('[WEM] Watching video ' + videoName);
           } else {
             console.warn('[WEM] Unable to watch video ' + videoName + ', video not found in the page');
           }
@@ -2632,7 +2632,7 @@
 
           if (click) {
             click.addEventListener('click', wem.sendClickEvent);
-            console.info('[WEM] Watching click ' + clickIdName);
+            console.debug('[WEM] Watching click ' + clickIdName);
           } else {
             console.warn('[WEM] Unable to watch click ' + clickIdName + ', element not found in the page');
           }
@@ -2836,14 +2836,14 @@
 
         if (wem.digitalData) {
           if (wem.cxs) {
-            console.info('[WEM] Trying to register context load callback, but context already loaded, executing now...');
+            console.debug('[WEM] Trying to register context load callback, but context already loaded, executing now...');
 
             if (onLoadCallback) {
-              console.info('[WEM] executing context load callback: ' + (name ? name : 'Callback without name'));
+              console.debug('[WEM] executing context load callback: ' + (name ? name : 'Callback without name'));
               onLoadCallback(wem.digitalData);
             }
           } else {
-            console.info('[WEM] registering context load callback: ' + (name ? name : 'Callback without name'));
+            console.debug('[WEM] registering context load callback: ' + (name ? name : 'Callback without name'));
 
             if (onLoadCallback) {
               wem.digitalData.loadCallbacks = wem.digitalData.loadCallbacks || [];
@@ -2855,7 +2855,7 @@
             }
           }
         } else {
-          console.info('[WEM] Trying to register context load callback, but no digitalData conf found, creating it and registering the callback: ' + (name ? name : 'Callback without name'));
+          console.debug('[WEM] Trying to register context load callback, but no digitalData conf found, creating it and registering the callback: ' + (name ? name : 'Callback without name'));
           wem.digitalData = {};
 
           if (onLoadCallback) {
@@ -2881,7 +2881,7 @@
           if (wem.cxs) {
             console.error('[WEM] already loaded, too late...');
           } else {
-            console.info('[WEM] digitalData object present but not loaded, registering sort callback...');
+            console.debug('[WEM] digitalData object present but not loaded, registering sort callback...');
             wem.digitalData.personalizationCallback = wem.digitalData.personalizationCallback || [];
             wem.digitalData.personalizationCallback.push({
               personalization: personalization,
@@ -2931,7 +2931,7 @@
         wem.cxs = JSON.parse(xhr.responseText);
 
         if (wem.digitalData.loadCallbacks && wem.digitalData.loadCallbacks.length > 0) {
-          console.info('[WEM] Found context server load callbacks, calling now...');
+          console.debug('[WEM] Found context server load callbacks, calling now...');
 
           wem._executeLoadCallbacks(wem.digitalData);
 
@@ -2981,7 +2981,7 @@
           wem.digitalData.loadCallbacks.sort(function (a, b) {
             return a.priority - b.priority;
           }).forEach(function (loadCallback) {
-            console.info('[WEM] executing context load callback: ' + (loadCallback.name ? loadCallback.name : 'callback without name'));
+            console.debug('[WEM] executing context load callback: ' + (loadCallback.name ? loadCallback.name : 'callback without name'));
             loadCallback.execute(callbackParam);
           });
         }
@@ -3046,12 +3046,12 @@
        * @return {undefined}
        */
       _formSubmitEventListener: function _formSubmitEventListener(event) {
-        console.info('[WEM] Registering form event callback');
+        console.debug('[WEM] Registering form event callback');
         var form = event.target;
         var formName = form.getAttribute('name') ? form.getAttribute('name') : form.getAttribute('id');
 
         if (formName && wem.formNamesToWatch.indexOf(formName) > -1) {
-          console.info('[WEM] catching form ' + formName);
+          console.debug('[WEM] catching form ' + formName);
           var eventCopy = document.createEvent('Event'); // Define that the event name is 'build'.
 
           eventCopy.initEvent('submit', event.bubbles, event.cancelable);
