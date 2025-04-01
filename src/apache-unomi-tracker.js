@@ -17,7 +17,7 @@
 
 import { Crawler } from 'es6-crawler-detect';
 
-export const newTracker = () => {
+export const useTracker = () => {
     const wem = {
         /**
          * This function initialize the tracker

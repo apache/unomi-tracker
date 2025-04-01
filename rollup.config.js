@@ -24,7 +24,7 @@ import * as path from 'path';
 
 export default [
     {
-        input: 'src/index.js',
+        input: 'src/apache-unomi-tracker.js',
         output: {
             name: pkg.name,
             file: pkg.browser,
@@ -50,7 +50,7 @@ export default [
         ],
     },
     {
-        input: 'src/index.js',
+        input: 'src/apache-unomi-tracker.js',
         output: [
             { file: pkg.main, format: 'cjs', sourcemap: true },
             { file: pkg.module, format: 'es', sourcemap: true },
