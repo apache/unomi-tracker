@@ -14,15 +14,37 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+// @ts-expect-error This module is typed starting v4, we are using v3
 import { Crawler } from 'es6-crawler-detect';
+
+/** @import { AjaxOptions, DigitalData, UnomiEvent, Personalization, PersonalizationCallback, Variant, UnomiObject, UnomiProperties } from "./types" */
 
 export const useTracker = () => {
     const wem = {
+        digitalData: /** @type {DigitalData} */(/** @type {unknown} */(undefined)),
+        trackerProfileIdCookieName: 'wem-profile-id',
+        trackerSessionIdCookieName: 'wem-session-id',
+        browserGeneratedSessionSuffix: '',
+        disableTrackedConditionsListeners: false,
+        activateWem: true,
+        contextServerCookieName: 'context-profile-id',
+        contextServerUrl: '',
+        timeoutInMilliseconds: 1500,
+        formNamesToWatch: /** @type {string[]} */([]),
+        eventsPrevented: /** @type {string[]} */([]),
+        /** @type {string | null} */
+        sessionID: null,
+        fallback: false,
+        /** @type {any} */
+        cxs: undefined,
+        DOMLoaded: false,
+        /** @type {string | undefined} */
+        contextLoaded: undefined,
+
         /**
          * This function initialize the tracker
          *
-         * @param {object} digitalData config of the tracker
+         * @param {DigitalData} digitalData config of the tracker
          * @returns {undefined}
          */
         initTracker: function (digitalData) {
@@ -30,7 +52,7 @@ export const useTracker = () => {
             wem.trackerProfileIdCookieName =  wem.digitalData.wemInitConfig.trackerProfileIdCookieName ?  wem.digitalData.wemInitConfig.trackerProfileIdCookieName : 'wem-profile-id';
             wem.trackerSessionIdCookieName =  wem.digitalData.wemInitConfig.trackerSessionIdCookieName ?  wem.digitalData.wemInitConfig.trackerSessionIdCookieName : 'wem-session-id';
             wem.browserGeneratedSessionSuffix =  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix ?  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix : '';
-            wem.disableTrackedConditionsListeners =  wem.digitalData.wemInitConfig.disableTrackedConditionsListeners;
+            wem.disableTrackedConditionsListeners =  wem.digitalData.wemInitConfig.disableTrackedConditionsListeners || false;
             wem.activateWem = wem.digitalData.wemInitConfig.activateWem;
 
             const { contextServerUrl, timeoutInMilliseconds, contextServerCookieName } = wem.digitalData.wemInitConfig;
@@ -53,7 +75,7 @@ export const useTracker = () => {
          * This function start the tracker by loading the context in the page
          * Note: that the tracker will start once the current DOM is complete loaded, using listener on current document: DOMContentLoaded
          *
-         * @param {object[]} digitalDataOverrides optional, list of digitalData extensions, they will be merged with original digitalData before context loading
+         * @param {Array<Partial<DigitalData>>} [digitalDataOverrides] optional, list of digitalData extensions, they will be merged with original digitalData before context loading
          * @returns {undefined}
          */
         startTracker: function (digitalDataOverrides = undefined) {
@@ -131,7 +153,7 @@ export const useTracker = () => {
 
         /**
          * get the current loaded context from Unomi, will be accessible only after loadContext() have been performed
-         * @returns {object} loaded context
+         * @returns {any} loaded context
          */
         getLoadedContext: function () {
             return wem.cxs;
@@ -160,9 +182,9 @@ export const useTracker = () => {
         /**
          * This function will register a personalization
          *
-         * @param {object} personalization the personalization object
-         * @param {object} variants the variants
-         * @param {boolean} [ajax] Deprecated: Ajax rendering is not supported anymore
+         * @param {Personalization} personalization the personalization object
+         * @param {Record<string, Variant>} variants the variants
+         * @param {boolean} [ajax] Deprecated: Ajax rendering is not supported anymore (ignored)
          * @param {function} [resultCallback] the callback to be executed after personalization resolved
          * @returns {undefined}
          */
@@ -200,9 +222,10 @@ export const useTracker = () => {
                     resultCallback(successfulFilters, selectedFilter);
                 } else {
                     if (selectedFilter) {
-                        var targetFilters = document.getElementById(target).children;
+                        var targetFilters = /** @type {HTMLElement} */(document.getElementById(target)).children;
                         for (var fIndex in targetFilters) {
-                            var filter = targetFilters.item(fIndex);
+                            // @ts-expect-error The indexing is unsafe
+                            var filter = /** @type {HTMLElement | null} */(targetFilters.item(fIndex));
                             if (filter) {
                                 filter.style.display = (filter.id === selectedFilter.content) ? '' : 'none';
                             }
@@ -211,8 +234,11 @@ export const useTracker = () => {
                             // we now add control group information to event if the user is in the control group.
                             if (inControlGroup) {
                                 console.debug('[WEM] Profile is in control group for target: ' + target + ', adding to personalization event...');
+                                // @ts-expect-error The properties are not defined
                                 selectedFilter.event.target.properties.inControlGroup = true;
+                                // @ts-expect-error The properties are not defined
                                 if (selectedFilter.event.target.properties.variants) {
+                                    // @ts-expect-error The properties are not defined
                                     selectedFilter.event.target.properties.variants.forEach(variant => variant.inControlGroup = true);
                                 }
                             }
@@ -228,9 +254,10 @@ export const useTracker = () => {
                             wem._dispatchJSExperienceDisplayedEvent(selectedFilter.event);
                         }
                     } else {
-                        var elements = document.getElementById(target).children;
+                        var elements = /** @type {HTMLElement} */(document.getElementById(target)).children;
                         for (var eIndex in elements) {
-                            var el = elements.item(eIndex);
+                            // @ts-expect-error The indexing is unsafe
+                            var el = /** @type {HTMLElement} */(elements.item(eIndex));
                             el.style.display = 'none';
                         }
                     }
@@ -242,11 +269,11 @@ export const useTracker = () => {
          * This function will register an optimization test or A/B test
          *
          * @param {string} optimizationTestNodeId the optimization test node id
-         * @param {string} goalId the associated goal Id
-         * @param {string} containerId the HTML container Id
-         * @param {object} variants the variants
-         * @param {boolean} [ajax] Deprecated: Ajax rendering is not supported anymore
-         * @param {object} [variantsTraffic] the associated traffic allocation
+         * @param {string} goalId the associated goal Id (unused)
+         * @param {string} containerId the HTML container Id (unused)
+         * @param {Record<string, Variant>} variants the variants
+         * @param {boolean} [ajax] Deprecated: Ajax rendering is not supported anymore (unused)
+         * @param {Record<string, number>} [variantsTraffic] the associated traffic allocation
          * @return {undefined}
          */
         registerOptimizationTest: function (optimizationTestNodeId, goalId, containerId, variants, ajax, variantsTraffic) {
@@ -280,11 +307,11 @@ export const useTracker = () => {
                     selectedVariantId = keys[keys.length * Math.random() << 0];
                 }
                 if (wem.storageAvailable('sessionStorage')) {
-                    sessionStorage.setItem(optimizationTestNodeId, selectedVariantId);
+                    sessionStorage.setItem(optimizationTestNodeId, /** @type {string} */(selectedVariantId));
                 } else {
-                    wem.setCookie('selectedVariantId', selectedVariantId, 1);
+                    wem.setCookie('selectedVariantId', /** @type {string} */(selectedVariantId), 1);
                 }
-                const variant = variants[selectedVariantId];
+                const variant = variants[/** @type {string} */(selectedVariantId)];
                 // spread event to unomi
                 if (variant.event) {
                     wem._registerEvent(wem._completeEvent(variant.event));
@@ -298,7 +325,7 @@ export const useTracker = () => {
                 }
 
                 // display the good variant
-                document.getElementById(variants[selectedVariantId].content).style.display = '';
+                /** @type {HTMLElement} */(document.getElementById(variants[selectedVariantId].content)).style.display = '';
             }
         },
 
@@ -316,6 +343,7 @@ export const useTracker = () => {
                 console.log('Context already requested by', wem.contextLoaded);
                 return;
             }
+            /** @type {Record<string, unknown>} */
             var jsonData = {
                 requiredProfileProperties: wem.digitalData.wemInitConfig.requiredProfileProperties,
                 requiredSessionProperties: wem.digitalData.wemInitConfig.requiredSessionProperties,
@@ -345,6 +373,7 @@ export const useTracker = () => {
                 contentType: 'text/plain;charset=UTF-8', // Use text/plain to avoid CORS preflight
                 jsonData: jsonData,
                 dataType: 'application/json',
+                // @ts-expect-error This parameter does not exist
                 invalidate: invalidate,
                 success: wem._onSuccess,
                 error: function () {
@@ -355,23 +384,25 @@ export const useTracker = () => {
             console.info('[WEM] context loading...');
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * This function will send an event to Apache Unomi
-         * @param {object} event The event object to send, you can build it using wem.buildEvent(eventType, target, source)
-         * @param {function} successCallback optional, will be executed in case of success
-         * @param {function} errorCallback optional, will be executed in case of error
+         * @param {UnomiEvent} event The event object to send, you can build it using wem.buildEvent(eventType, target, source)
+         * @param {(xhr: XMLHttpRequest) => void} [successCallback] optional, will be executed in case of success
+         * @param {(xhr: XMLHttpRequest) => void} [errorCallback] optional, will be executed in case of error
          * @return {undefined}
          */
         collectEvent: function (event, successCallback = undefined, errorCallback = undefined) {
             wem.collectEvents({ events: [event] }, successCallback, errorCallback);
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * This function will send the events to Apache Unomi
          *
-         * @param {object} events Javascript object { events: [event1, event2] }
-         * @param {function} successCallback optional, will be executed in case of success
-         * @param {function} errorCallback optional, will be executed in case of error
+         * @param {{ sessionId?: string, events: Array<UnomiEvent> }} events Javascript object { events: [event1, event2] }
+         * @param {(xhr: XMLHttpRequest) => void} [successCallback] optional, will be executed in case of success
+         * @param {(xhr: XMLHttpRequest) => void} [errorCallback] optional, will be executed in case of error
          * @return {undefined}
          */
         collectEvents: function (events, successCallback = undefined, errorCallback = undefined) {
@@ -395,10 +426,11 @@ export const useTracker = () => {
             });
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * This function will build an event of type click and send it to Apache Unomi
          *
-         * @param {object} event javascript
+         * @param {Event & { target: HTMLElement & { name: string }}} event javascript
          * @param {function} [successCallback] optional, will be executed if case of success
          * @param {function} [errorCallback] optional, will be executed if case of error
          * @return {undefined}
@@ -440,17 +472,18 @@ export const useTracker = () => {
             }
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * This function will build an event of type video and send it to Apache Unomi
          *
-         * @param {object} event javascript
-         * @param {function} [successCallback] optional, will be executed if case of success
-         * @param {function} [errorCallback] optional, will be executed if case of error
+         * @param {Event} event javascript
+         * @param {(xhr: XMLHttpRequest) => void} [successCallback] optional, will be executed if case of success
+         * @param {(xhr: XMLHttpRequest) => void} [errorCallback] optional, will be executed if case of error
          * @return {undefined}
          */
         sendVideoEvent: function (event, successCallback = undefined, errorCallback = undefined) {
             console.debug('[WEM] catching video event');
-            var videoEvent = wem.buildEvent('video', wem.buildTarget(event.target.id, 'video', { action: event.type }), wem.buildSourcePage());
+            var videoEvent = wem.buildEvent('video', wem.buildTarget(/** @type {HTMLElement} */(event.target).id, 'video', { action: event.type }), wem.buildSourcePage());
 
             wem.collectEvent(videoEvent, function (xhr) {
                 console.debug('[WEM] Video event successfully collected.');
@@ -480,15 +513,17 @@ export const useTracker = () => {
             wem.cxs = undefined;
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * This function return the basic structure for an event, it must be adapted to your need
          *
          * @param {string} eventType The name of your event
-         * @param {object} [target] The target object for your event can be build with wem.buildTarget(targetId, targetType, targetProperties)
-         * @param {object} [source] The source object for your event can be build with wem.buildSource(sourceId, sourceType, sourceProperties)
-         * @returns {object} the event
+         * @param {UnomiEvent["target"]} [target] The target object for your event can be build with wem.buildTarget(targetId, targetType, targetProperties)
+         * @param {UnomiEvent["source"]} [source] The source object for your event can be build with wem.buildSource(sourceId, sourceType, sourceProperties)
+         * @returns {UnomiEvent} the event
          */
         buildEvent: function (eventType, target, source) {
+            /** @type {UnomiEvent} */
             var event = {
                 eventType: eventType,
                 scope: wem.digitalData.scope
@@ -509,8 +544,8 @@ export const useTracker = () => {
          * This function return an event of type form
          *
          * @param {string} formName The HTML name of id of the form to use in the target of the event
-         * @param {HTMLFormElement} form optional HTML form element, if provided will be used to extract the form fields and populate the form event
-         * @returns {object} the form event
+         * @param {HTMLFormElement} [form] optional HTML form element, if provided will be used to extract the form fields and populate the form event
+         * @returns {UnomiEvent} the form event
          */
         buildFormEvent: function (formName, form = undefined) {
             const formEvent = wem.buildEvent('form', wem.buildTarget(formName, 'form'), wem.buildSourcePage());
@@ -519,6 +554,13 @@ export const useTracker = () => {
             };
             return formEvent;
         },
+        /**
+         * @param {string} formName form name
+         * @param {HTMLFormElement} form form
+         * @param {string} term term
+         * @param {string} language language
+         * @returns {UnomiEvent} event
+         */
         buildSearchEvent: function (formName, form, term, language) {
             const searchEvent = wem.buildEvent('search', wem.buildTarget(formName, 'search'), wem.buildSourcePage());
             searchEvent.flattenedProperties = {
@@ -529,47 +571,52 @@ export const useTracker = () => {
                 originForm: formName,
                 language: language || 'en',
                 keyword: term,
+                // @ts-expect-error There is no way this is properly defined
                 origin: searchEvent.source.properties.pageInfo.pagePath
             };
             return searchEvent;
         },
+        // eslint-disable-next-line valid-jsdoc
         /**
          * This function return the source object for a source of type page
          *
-         * @returns {object} the target page
+         * @returns {UnomiEvent["target"]} the target page
          */
         buildTargetPage: function () {
             return wem.buildTarget(wem.digitalData.page.pageInfo.pageID, 'page', wem.digitalData.page);
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * This function return the source object for a source of type page
          *
-         * @returns {object} the source page
+         * @returns {UnomiEvent["source"]} the source page
          */
         buildSourcePage: function () {
             return wem.buildSource(wem.digitalData.page.pageInfo.pageID, 'page', wem.digitalData.page);
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * This function return the basic structure for the target of your event
          *
          * @param {string} targetId The ID of the target
          * @param {string} targetType The type of the target
-         * @param {object} [targetProperties] The optional properties of the target
-         * @returns {object} the target
+         * @param {UnomiProperties} [targetProperties] The optional properties of the target
+         * @returns {UnomiEvent["target"]} the target
          */
         buildTarget: function (targetId, targetType, targetProperties = undefined) {
             return wem._buildObject(targetId, targetType, targetProperties);
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * This function return the basic structure for the source of your event
          *
          * @param {string} sourceId The ID of the source
          * @param {string} sourceType The type of the source
-         * @param {object} [sourceProperties] The optional properties of the source
-         * @returns {object} the source
+         * @param {UnomiProperties} [sourceProperties] The optional properties of the source
+         * @returns {UnomiEvent["source"]} the source
          */
         buildSource: function (sourceId, sourceType, sourceProperties = undefined) {
             return wem._buildObject(sourceId, sourceType, sourceProperties);
@@ -603,7 +650,7 @@ export const useTracker = () => {
          * This is an utility function to get a cookie
          *
          * @param {string} cookieName name of the cookie to get
-         * @returns {string} the value of the first cookie with the corresponding name or null if not found
+         * @returns {string | null} the value of the first cookie with the corresponding name or null if not found
          */
         getCookie: function (cookieName) {
             var name = cookieName + '=';
@@ -634,7 +681,7 @@ export const useTracker = () => {
         /**
          * This is an utility function to execute AJAX call
          *
-         * @param {object} options options of the request
+         * @param {AjaxOptions} options options of the request
          * @return {undefined}
          */
         ajax: function (options) {
@@ -720,7 +767,7 @@ export const useTracker = () => {
 
         /**
          * This is an utility function to check if the local storage is available or not
-         * @param {string} type the type of storage to test
+         * @param {"sessionStorage" | "localStorage"} type the type of storage to test
          * @returns {boolean} true in case storage is available, false otherwise
          */
         storageAvailable: function (type) {
@@ -767,7 +814,7 @@ export const useTracker = () => {
          * This is an utility function to get current url parameter value
          *
          * @param {string} name, the name of the parameter
-         * @returns {string} the value of the parameter
+         * @returns {string | null} the value of the parameter
          */
         getUrlParameter: function (name) {
             name = name.replace(/[[]/, '\\[').replace(/[\]]/, '\\]');
@@ -779,7 +826,7 @@ export const useTracker = () => {
         /**
          * convert the passed query string into JS object.
          * @param {string} searchString The URL query string
-         * @returns {object} converted URL params
+         * @returns {Record<string, Array<string | undefined> | string | undefined> | null} converted URL params
          */
         convertUrlParametersToObj: function (searchString) {
             if (!searchString) {
@@ -807,7 +854,7 @@ export const useTracker = () => {
                     }
 
                     return result;
-                }, {}
+                }, /** @type Record<string, Array<string | undefined> | string | undefined> */({})
                 );
         },
 
@@ -818,7 +865,7 @@ export const useTracker = () => {
          * Used to override the default digitalData values,
          * the result will impact directly the current instance wem.digitalData
          *
-         * @param {object[]} digitalDataOverrides list of overrides
+         * @param {Array<Partial<DigitalData>>} [digitalDataOverrides] list of overrides
          * @private
          * @return {undefined}
          */
@@ -898,6 +945,7 @@ export const useTracker = () => {
                     ? (document.getElementById(clickIdName) || document.getElementById(wem._resolveId(clickIdName)))
                     : document.getElementsByName(clickIdName)[0];
                 if (click) {
+                    // @ts-expect-error The types will never match
                     click.addEventListener('click', wem.sendClickEvent);
                     console.debug('[WEM] Watching click ' + clickIdName);
                 } else {
@@ -938,7 +986,7 @@ export const useTracker = () => {
         /**
          * build and dispatch JavaScript event in current HTML document for the given Unomi event (perso/opti)
          * @private
-         * @param {object} experienceUnomiEvent perso/opti Unomi event
+         * @param {UnomiEvent} experienceUnomiEvent perso/opti Unomi event
          * @return {undefined}
          */
         _dispatchJSExperienceDisplayedEvent: experienceUnomiEvent => {
@@ -949,11 +997,13 @@ export const useTracker = () => {
                 experienceUnomiEvent.target.properties.variants &&
                 experienceUnomiEvent.target.properties.variants.length > 0) {
 
+                /** @type {Record<string, string | undefined>} */
                 let typeMapper = {
                     optimizationTestEvent: 'optimization',
                     personalizationEvent: 'personalization'
                 };
                 for (const variant of experienceUnomiEvent.target.properties.variants) {
+                    /** @type {any} */
                     let jsEventDetail = {
                         id: variant.id,
                         name: variant.systemName,
@@ -1005,9 +1055,9 @@ export const useTracker = () => {
          * Check if event is incomplete and complete what is missing:
          * - source: if missing, use the current source page
          * - scope: if missing, use the current scope
-         * @param {object} event, the event to be checked
+         * @param {UnomiEvent} event, the event to be checked
          * @private
-         * @return {object} the complete event
+         * @return {UnomiEvent} the complete event
          */
         _completeEvent: function (event) {
             if (!event.source) {
@@ -1030,7 +1080,7 @@ export const useTracker = () => {
          * in case the context is already loaded (check: wem.getLoadedContext()), then you should use: wem.collectEvent(s) functions
          *
          * @private
-         * @param {object} event the Unomi event to be registered
+         * @param {UnomiEvent} event the Unomi event to be registered
          * @param {boolean} unshift optional, if true, the event will be added at the beginning of the list otherwise at the end of the list. (default: false)
          * @return {undefined}
          */
@@ -1041,7 +1091,7 @@ export const useTracker = () => {
                     return;
                 }
             } else {
-                wem.digitalData = {};
+                wem.digitalData = /** @type {DigitalData} */({});
             }
 
             wem.digitalData.events = wem.digitalData.events || [];
@@ -1052,10 +1102,11 @@ export const useTracker = () => {
             }
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * This function allow for registering callback that will be executed once the context is loaded.
-         * @param {function} onLoadCallback the callback to be executed
-         * @param {string} name optional name for the call, used mostly for logging the execution
+         * @param {(...args: unknown[]) => void} onLoadCallback the callback to be executed
+         * @param {string} [name] optional name for the call, used mostly for logging the execution
          * @param {number} priority optional priority to execute the callbacks in a specific order
          *                          (default: 5, to leave room for the tracker default callback(s))
          * @private
@@ -1082,7 +1133,7 @@ export const useTracker = () => {
                 }
             } else {
                 console.debug('[WEM] Trying to register context load callback, but no digitalData conf found, creating it and registering the callback: ' + (name ? name : 'Callback without name'));
-                wem.digitalData = {};
+                wem.digitalData = /** @type {DigitalData} */({});
                 if (onLoadCallback) {
                     wem.digitalData.loadCallbacks = [];
                     wem.digitalData.loadCallbacks.push({
@@ -1096,8 +1147,8 @@ export const useTracker = () => {
 
         /**
          * Internal function for personalization specific callbacks (used for HTML dom manipulation once we get the context loaded)
-         * @param {object} personalization the personalization
-         * @param {function} callback the callback
+         * @param {Personalization} personalization the personalization
+         * @param {PersonalizationCallback} callback the callback
          * @private
          * @return {undefined}
          */
@@ -1111,21 +1162,23 @@ export const useTracker = () => {
                     wem.digitalData.personalizationCallback.push({ personalization: personalization, callback: callback });
                 }
             } else {
-                wem.digitalData = {};
+                wem.digitalData = /** @type {DigitalData} */({});
                 wem.digitalData.personalizationCallback = wem.digitalData.personalizationCallback || [];
                 wem.digitalData.personalizationCallback.push({ personalization: personalization, callback: callback });
             }
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * Build a simple Unomi object
          * @param {string} itemId the itemId of the object
          * @param {string} itemType the itemType of the object
-         * @param {object} properties optional properties for the object
+         * @param {UnomiProperties} [properties] optional properties for the object
          * @private
-         * @return {object} the built Unomi JSON object
+         * @return {UnomiObject} the built Unomi JSON object
          */
         _buildObject: function (itemId, itemType, properties = undefined) {
+            /** @type {UnomiObject} */
             var object = {
                 scope: wem.digitalData.scope,
                 itemId: itemId,
@@ -1224,7 +1277,7 @@ export const useTracker = () => {
                     var query = undefined;
                     if (search && search != '') {
                         // parse parameters
-                        var queryParams = [], param;
+                        var queryParams = /** @type {string[] & Record<string, string>} */(/** @type {unknown} */([])), /** @type {string[]} */ param;
                         var queryParamPairs = search.slice(1).split('&');
                         for (var i = 0; i < queryParamPairs.length; i++) {
                             param = queryParamPairs[i].split('=');
@@ -1253,13 +1306,13 @@ export const useTracker = () => {
          * this listener will automatically send the form event to Unomi, by parsing the HTML form data.
          * (NOTE: the form listener only work for know forms to be watch due to tracked conditions)
          *
-         * @param {object} event the original HTML form submition event for the watch form.
+         * @param {SubmitEvent} event the original HTML form submition event for the watch form.
          * @private
          * @return {undefined}
          */
         _formSubmitEventListener: function (event) {
             console.debug('[WEM] Registering form event callback');
-            var form = event.target;
+            var form = /** @type {HTMLFormElement} */(event.target);
             var formName = form.getAttribute('name') ? form.getAttribute('name') : form.getAttribute('id');
             if (formName && wem.formNamesToWatch.indexOf(formName) > -1) {
                 console.debug('[WEM] catching form ' + formName);
@@ -1302,9 +1355,10 @@ export const useTracker = () => {
          * @return {object} the form data as JSON
          */
         _extractFormData: function (form) {
+            /** @type {Record<string, string | string[]>} */
             var params = {};
             for (var i = 0; i < form.elements.length; i++) {
-                var e = form.elements[i];
+                var e = /** @type {HTMLInputElement | HTMLSelectElement} */(form.elements[i]);
                 // ignore empty and undefined key (e.name)
                 if (e.name) {
                     switch (e.nodeName) {
@@ -1318,7 +1372,7 @@ export const useTracker = () => {
                                             params[e.name] = [];
                                         }
                                         if (e.checked) {
-                                            params[e.name].push(e.value);
+                                            /** @type {string[]} */(params[e.name]).push(e.value);
                                         }
 
                                     }
@@ -1337,16 +1391,17 @@ export const useTracker = () => {
                             }
                             break;
                         case 'SELECT':
-                            if (e.options && e.options[e.selectedIndex]) {
-                                if (e.multiple) {
-                                    params[e.name] = [];
-                                    for (var j = 0; j < e.options.length; j++) {
-                                        if (e.options[j].selected) {
-                                            params[e.name].push(e.options[j].value);
+                            var s = /** @type {HTMLSelectElement} */(e);
+                            if (s.options && s.options[s.selectedIndex]) {
+                                if (s.multiple) {
+                                    params[s.name] = [];
+                                    for (var j = 0; j < s.options.length; j++) {
+                                        if (s.options[j].selected) {
+                                            /** @type {string[]} */(params[s.name]).push(s.options[j].value);
                                         }
                                     }
                                 } else {
-                                    params[e.name] = e.options[e.selectedIndex].value;
+                                    params[s.name] = s.options[s.selectedIndex].value;
                                 }
                             }
                             break;
@@ -1367,15 +1422,17 @@ export const useTracker = () => {
                 var source = Object.keys(wem.digitalData.sourceLocalIdentifierMap).filter(function (source) {
                     return id.indexOf(source) > 0;
                 });
+                // @ts-expect-error This code is broken, source is an array
                 return source ? id.replace(source, wem.digitalData.sourceLocalIdentifierMap[source]) : id;
             }
             return id;
         },
 
+        // eslint-disable-next-line valid-jsdoc
         /**
          * Enable or disable tracking in current page
          * @param {boolean} enable true will enable the tracking feature, otherwise they will be disabled
-         * @param {function} callback an optional callback that can be used to perform additional logic based on enabling/disabling results
+         * @param {(enable: boolean) => void} [callback] an optional callback that can be used to perform additional logic based on enabling/disabling results
          * @private
          * @return {undefined}
          */
@@ -1405,10 +1462,11 @@ export const useTracker = () => {
 
         /**
          * Utility function used to merge two JSON object together (arrays are concat for example)
-         * @param {object} source the source object for merge
-         * @param {object} target the target object for merge
+         * @template T
+         * @param {any} source the source object for merge
+         * @param {T} target the target object for merge
          * @private
-         * @return {object} the merged results
+         * @return {T} the merged results
          */
         _deepMergeObjects: function (source, target) {
             if (!wem._isObject(target) || !wem._isObject(source)) {
@@ -1416,15 +1474,19 @@ export const useTracker = () => {
             }
 
             Object.keys(source).forEach(key => {
+                // @ts-expect-error target cannot be indexed by key
                 const targetValue = target[key];
                 const sourceValue = source[key];
 
                 // concat arrays || merge objects || add new props
                 if (Array.isArray(targetValue) && Array.isArray(sourceValue)) {
+                    // @ts-expect-error target cannot be indexed by key
                     target[key] = targetValue.concat(sourceValue);
                 } else if (wem._isObject(targetValue) && wem._isObject(sourceValue)) {
+                    // @ts-expect-error target cannot be indexed by key
                     target[key] = wem._deepMergeObjects(sourceValue, Object.assign({}, targetValue));
                 } else {
+                    // @ts-expect-error target cannot be indexed by key
                     target[key] = sourceValue;
                 }
             });

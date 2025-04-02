@@ -16,7 +16,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "rollup -c && tsc || true",
+    "build": "rollup -c && tsc",
     "test": "node test/spec",
     "pretest": "yarn run build",
     "lint": "eslint --ext js,json ."
