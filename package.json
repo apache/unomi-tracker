@@ -7,12 +7,16 @@
   "main": "dist/apache-unomi-tracker.cjs.js",
   "module": "dist/apache-unomi-tracker.esm.js",
   "browser": "dist/apache-unomi-tracker.umd.js",
+  "types": "dist/apache-unomi-tracker.d.ts",
   "keywords": [
     "unomi",
     "npm"
   ],
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "rollup -c",
+    "build": "rollup -c && tsc || true",
     "test": "node test/spec",
     "pretest": "yarn run build",
     "lint": "eslint --ext js,json ."
@@ -27,7 +31,8 @@
     "eslint": "^8.23.0",
     "eslint-plugin-json": "^3.1.0",
     "rollup": "^2.79.0",
-    "rollup-plugin-license": "^2.8.1"
+    "rollup-plugin-license": "^2.8.1",
+    "typescript": "^5.8.2"
   },
   "dependencies": {
     "@babel/runtime": "^7.18.9",
