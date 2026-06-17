@@ -13,4 +13,4 @@ Security model: [SECURITY.md](./SECURITY.md)
 Agents that scan this repository should consult `SECURITY.md` and the
 threat model it links before reporting issues.
 
-unomi-tracker is the client-side JS tracker; the project-wide threat model lives in apache/unomi.
+Apache Unomi tracker is the client-side JS tracker; the project-wide threat model lives in `apache/unomi`.
