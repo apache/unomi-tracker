@@ -268,3 +268,6 @@ storybook-static/
 yalc.lock
 .yalc
 *.iml
+# Local env (secrets)
+.env.local
+.env*.local
