@@ -29,6 +29,8 @@ export interface DigitalData {
     trackerSessionIdCookieName?: string;
     browserGeneratedSessionSuffix?: string;
     disableTrackedConditionsListeners?: boolean;
+    /** When false, tracker requests are sent without cookies. Default true. */
+    sendCredentials?: boolean;
   };
   personalizationCallback: Array<{
     personalization: Personalization;

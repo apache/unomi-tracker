@@ -53,6 +53,7 @@ export const useTracker = () => {
             wem.trackerSessionIdCookieName =  wem.digitalData.wemInitConfig.trackerSessionIdCookieName ?  wem.digitalData.wemInitConfig.trackerSessionIdCookieName : 'wem-session-id';
             wem.browserGeneratedSessionSuffix =  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix ?  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix : '';
             wem.disableTrackedConditionsListeners =  wem.digitalData.wemInitConfig.disableTrackedConditionsListeners || false;
+            wem.sendCredentials = wem.digitalData.wemInitConfig.sendCredentials !== false;
             wem.activateWem = wem.digitalData.wemInitConfig.activateWem;
 
             const { contextServerUrl, timeoutInMilliseconds, contextServerCookieName } = wem.digitalData.wemInitConfig;
@@ -688,7 +689,7 @@ export const useTracker = () => {
             var xhr = new XMLHttpRequest();
             if ('withCredentials' in xhr) {
                 xhr.open(options.type, options.url, options.async);
-                xhr.withCredentials = true;
+                xhr.withCredentials = wem.sendCredentials !== false;
             } else if (typeof XDomainRequest != 'undefined') {
                 /* global XDomainRequest */
                 xhr = new XDomainRequest();
