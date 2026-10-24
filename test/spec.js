@@ -20,4 +20,38 @@ const unomi = require('..');
 const tracker = unomi.useTracker();
 
 assert(tracker !== null);
+
+// sendCredentials controls xhr.withCredentials
+globalThis.document = { cookie: 'wem-session-id=test-session' };
+globalThis.XMLHttpRequest = class {
+    constructor() {
+        this.withCredentials = undefined;
+    }
+    open() {}
+    setRequestHeader() {}
+    send() {}
+};
+
+function withCredentialsFor(wemInitConfig) {
+    const t = unomi.useTracker();
+    t.initTracker({ wemInitConfig: Object.assign({ contextServerUrl: '', timeoutInMilliseconds: -1 }, wemInitConfig) });
+    let sentXhr;
+    const OriginalXHR = globalThis.XMLHttpRequest;
+    globalThis.XMLHttpRequest = class extends OriginalXHR {
+        send() {
+            sentXhr = this;
+        }
+    };
+    try {
+        t.ajax({ type: 'POST', url: '/context.json', async: true });
+    } finally {
+        globalThis.XMLHttpRequest = OriginalXHR;
+    }
+    return sentXhr.withCredentials;
+}
+
+assert.strictEqual(withCredentialsFor({}), true, 'credentials are sent by default');
+assert.strictEqual(withCredentialsFor({ sendCredentials: true }), true, 'credentials are sent when sendCredentials is true');
+assert.strictEqual(withCredentialsFor({ sendCredentials: false }), false, 'credentials are not sent when sendCredentials is false');
+
 console.log('Tests passed');
