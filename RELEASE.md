@@ -41,6 +41,7 @@ Checks before starting the release process:
   - `yarn lint`: ensure linter checks are passing
   - `yarn test`: ensure tests are passing
   - `yarn build`: ensure build is passing
+  - `yarn test:servers`: ensure the tracker works with every supported Unomi version (needs Docker, see [test/servers](test/servers/README.md))
 
 Start the release process:
 - Check version and create Git tag:

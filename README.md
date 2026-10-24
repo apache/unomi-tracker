@@ -126,15 +126,24 @@ Options in `wemInitConfig`:
 | `requiredProfileProperties`, `requiredSessionProperties` | | Properties to return in the context |
 | `requireSegments`, `requireScores` | | Return the profile segments and scores in the context |
 
+Versions
+--------
+| Tracker | Unomi servers | Branch |
+|---|---|---|
+| 2.x | 2.x, 3.x and 4.x (multi-tenant with `apiKey`) | `main` |
+| 1.x | 2.x and 3.x; fixes only | `1_x` |
+
 Upgrading from 1.x
 ------------------
-- **TypeScript types**: the package now ships type definitions (`dist/apache-unomi-tracker.d.ts`). They are strict: `wemInitConfig` and `page.pageInfo` declare fields such as `isPreview`, `dxUsername`, `enableWemActionUrl` and `referringURL` as required, so a TypeScript project that passes a shorter configuration no longer compiles. Add the missing fields, or cast the configuration. JavaScript projects are not affected.
-- **New options**: `apiKey` (Unomi 4 multi-tenant) and `sendCredentials`. Without them, requests are the same as in 1.x.
-- **Package contents**: the npm package now contains only `dist`, `NOTICE`, `KEYS`, `LICENSE` and `README.md`.
+Version 2.0 is a drop-in replacement: the same configuration sends the same requests, so a site that works with 1.x keeps working with the same Unomi server.
+
+- To use a Unomi 4 multi-tenant server, set `apiKey` (see above).
+- The package now ships TypeScript types (`dist/apache-unomi-tracker.d.ts`). The configurations shown here and in the Unomi manual compile with them. A project that declared its own types for `apache-unomi-tracker` can remove them.
+- New option `sendCredentials`, see above.
 
 Testing
 -------
-- `yarn test`: unit tests
+- `yarn test`: unit tests, and a check that the documented configurations compile against the TypeScript types
 - `yarn test:servers`: browser tests against Unomi 2.x, 3.x and 4.x started with Docker; not part of CI, see [test/servers](test/servers/README.md)
 
 License

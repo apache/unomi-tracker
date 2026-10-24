@@ -7,24 +7,26 @@ export interface DigitalData {
   };
   page: {
     pageInfo: PageInfo;
+    /** Sent with the page properties. The default Unomi page schema does not allow it. */
+    attributes?: Record<string, unknown>;
     consentTypes: string[];
   };
-  events: UnomiEvent[];
-  interests: unknown;
-  contextServerPublicUrl: string;
-  sourceLocalIdentifierMap: unknown;
+  events?: UnomiEvent[];
+  interests?: unknown;
+  contextServerPublicUrl?: string;
+  sourceLocalIdentifierMap?: unknown;
   wemInitConfig: {
     contextServerUrl: string;
-    isPreview: boolean;
+    isPreview?: boolean;
     timeoutInMilliseconds: number;
-    dxUsername: string;
+    dxUsername?: string;
     contextServerCookieName: string;
     activateWem: boolean;
-    enableWemActionUrl: string;
-    requiredProfileProperties: string[];
-    requiredSessionProperties: string[];
-    requireSegments: boolean;
-    requireScores: boolean;
+    enableWemActionUrl?: string;
+    requiredProfileProperties?: string[];
+    requiredSessionProperties?: string[];
+    requireSegments?: boolean;
+    requireScores?: boolean;
     trackerProfileIdCookieName?: string;
     trackerSessionIdCookieName?: string;
     browserGeneratedSessionSuffix?: string;
@@ -44,7 +46,7 @@ export interface DigitalData {
      */
     apiKey?: string;
   };
-  personalizationCallback: Array<{
+  personalizationCallback?: Array<{
     personalization: Personalization;
     callback: PersonalizationCallback;
   }>;
@@ -58,13 +60,13 @@ export interface DigitalData {
 
 export interface PageInfo {
   pageID: string;
-  nodeType: string;
+  nodeType?: string;
   pageName: string;
   pagePath: string;
-  templateName: string;
+  templateName?: string;
   destinationURL: string;
-  destinationSearch: string;
-  referringURL: string;
+  destinationSearch?: string;
+  referringURL?: string;
   language: string;
   categories: string[];
   tags: string[];

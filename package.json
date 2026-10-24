@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build": "rollup -c && tsc",
-    "test": "node test/spec",
+    "test": "node test/spec && tsc -p test/types",
     "test:servers": "node test/servers/run.js",
     "pretest": "yarn run build",
     "lint": "eslint --ext js,json ."
