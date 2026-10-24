@@ -26,6 +26,7 @@ export const useTracker = () => {
         trackerSessionIdCookieName: 'wem-session-id',
         browserGeneratedSessionSuffix: '',
         disableTrackedConditionsListeners: false,
+        sendCredentials: true,
         activateWem: true,
         contextServerCookieName: 'context-profile-id',
         contextServerUrl: '',
@@ -689,7 +690,7 @@ export const useTracker = () => {
             var xhr = new XMLHttpRequest();
             if ('withCredentials' in xhr) {
                 xhr.open(options.type, options.url, options.async);
-                xhr.withCredentials = wem.sendCredentials !== false;
+                xhr.withCredentials = wem.sendCredentials;
             } else if (typeof XDomainRequest != 'undefined') {
                 /* global XDomainRequest */
                 xhr = new XDomainRequest();

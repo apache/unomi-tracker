@@ -29,7 +29,11 @@ export interface DigitalData {
     trackerSessionIdCookieName?: string;
     browserGeneratedSessionSuffix?: string;
     disableTrackedConditionsListeners?: boolean;
-    /** When false, tracker requests are sent without cookies. Default true. */
+    /**
+     * When false, tracker requests are sent without cookies. Default true.
+     * The server profile cookie is then not sent, so the profile is resolved
+     * from the session only and does not persist across sessions.
+     */
     sendCredentials?: boolean;
   };
   personalizationCallback: Array<{
