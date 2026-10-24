@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<!--
+  ~ Licensed to the Apache Software Foundation (ASF) under one or more
+  ~ contributor license agreements.  See the NOTICE file distributed with
+  ~ this work for additional information regarding copyright ownership.
+  ~ The ASF licenses this file to You under the Apache License, Version 2.0
+  ~ (the "License"); you may not use this file except in compliance with
+  ~ the License.  You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Unomi tracker test page</title>
+    <script>
+        // The crawler detection library calls Buffer.byteLength, which browsers do not have.
+        // ?noBufferShim loads the tracker without this shim, to check the bug is still there.
+        if (!new URLSearchParams(document.location.search).has('noBufferShim') && typeof window.Buffer === 'undefined') {
+            window.Buffer = {
+                byteLength: function (value) {
+                    return new TextEncoder().encode(value).length;
+                }
+            };
+        }
+    </script>
+    <script src="/tracker.js"></script>
+</head>
+<body>
+<script>
+    // The test configures the tracker through the query string:
+    //   unomi            Unomi server root URL (required)
+    //   apiKey           wemInitConfig.apiKey (optional)
+    //   sendCredentials  wemInitConfig.sendCredentials, "true" or "false" (optional)
+    //   noBufferShim     load the tracker without the Buffer shim (optional)
+    //   pageAttributes   add "attributes": {} to digitalData.page, as the Unomi manual does (optional)
+    (function () {
+        const params = new URLSearchParams(document.location.search);
+        const wemInitConfig = {
+            contextServerUrl: params.get('unomi'),
+            timeoutInMilliseconds: 10000,
+            contextServerCookieName: 'context-profile-id',
+            activateWem: true,
+            trackerSessionIdCookieName: 'tracker-test-session-id',
+            trackerProfileIdCookieName: 'tracker-test-profile-id'
+        };
+        if (params.has('apiKey')) {
+            wemInitConfig.apiKey = params.get('apiKey');
+        }
+        if (params.has('sendCredentials')) {
+            wemInitConfig.sendCredentials = params.get('sendCredentials') === 'true';
+        }
+        const digitalData = {
+            scope: 'tracker-test',
+            site: { siteInfo: { siteID: 'tracker-test' } },
+            page: {
+                pageInfo: {
+                    pageID: 'tracker-test-page',
+                    pageName: document.title,
+                    pagePath: document.location.pathname,
+                    destinationURL: document.location.origin + document.location.pathname,
+                    language: 'en',
+                    categories: [],
+                    tags: []
+                },
+                consentTypes: []
+            },
+            events: [],
+            wemInitConfig: wemInitConfig
+        };
+
+        if (params.has('pageAttributes')) {
+            digitalData.page.attributes = {};
+        }
+
+        const tracker = window['apache-unomi-tracker'].useTracker();
+        if (tracker.getCookie(wemInitConfig.trackerSessionIdCookieName) == null) {
+            tracker.setCookie(wemInitConfig.trackerSessionIdCookieName, tracker.generateGuid(), 1);
+        }
+
+        // initTracker replaces the tracker configuration, so register the callback after it
+        tracker.initTracker(digitalData);
+
+        window.trackerTest = {
+            // Resolves once the context is loaded, or once the tracker falls back after an error
+            context: new Promise(function (resolve) {
+                tracker._registerCallback(function () {
+                    // Load callbacks receive digitalData; the context answer is in getLoadedContext()
+                    const cxs = tracker.getLoadedContext();
+                    resolve({
+                        loaded: !tracker.fallback,
+                        profileId: cxs ? cxs.profileId : undefined,
+                        sessionId: cxs ? cxs.sessionId : undefined
+                    });
+                }, 'tracker test', 10);
+            }),
+            sendClick: function (targetId) {
+                return new Promise(function (resolve) {
+                    if (tracker.fallback) {
+                        resolve({ sent: false });
+                        return;
+                    }
+                    const event = tracker.buildEvent('click', tracker.buildTarget(targetId, 'button'), tracker.buildSourcePage());
+                    tracker.collectEvent(event, function (xhr) {
+                        resolve({ sent: true, status: xhr.status });
+                    }, function (xhr) {
+                        resolve({ sent: false, status: xhr.status });
+                    });
+                });
+            }
+        };
+
+        tracker.startTracker();
+    })();
+</script>
+</body>
+</html>

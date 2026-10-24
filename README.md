@@ -132,6 +132,11 @@ Upgrading from 1.x
 - **New options**: `apiKey` (Unomi 4 multi-tenant) and `sendCredentials`. Without them, requests are the same as in 1.x.
 - **Package contents**: the npm package now contains only `dist`, `NOTICE`, `KEYS`, `LICENSE` and `README.md`.
 
+Testing
+-------
+- `yarn test`: unit tests
+- `yarn test:servers`: browser tests against Unomi 2.x, 3.x and 4.x started with Docker; not part of CI, see [test/servers](test/servers/README.md)
+
 License
 -------
 The source code is available under the Apache License V2

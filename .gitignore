@@ -271,3 +271,7 @@ yalc.lock
 # Local env (secrets)
 .env.local
 .env*.local
+
+# Tracker server tests (test/servers)
+test/servers/test-results/
+playwright-report/
