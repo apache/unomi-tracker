@@ -31,10 +31,18 @@ export interface DigitalData {
     disableTrackedConditionsListeners?: boolean;
     /**
      * When false, tracker requests are sent without cookies. Default true.
-     * The server profile cookie is then not sent, so the profile is resolved
-     * from the session only and does not persist across sessions.
+     * The server profile cookie is then not sent: Unomi 2.x and 3.x find the
+     * profile through the session only, and Unomi 4 creates a new anonymous
+     * profile on every request.
      */
     sendCredentials?: boolean;
+    /**
+     * Public API key of the Unomi 4 tenant, sent as the X-Unomi-Api-Key header.
+     * Leave unset for Unomi 2.x, Unomi 3.x, or Unomi 4 in single-tenant compatibility mode.
+     * Never use a private key here: the tracker configuration is visible to visitors.
+     * Setting it makes browsers send a CORS preflight before each request.
+     */
+    apiKey?: string;
   };
   personalizationCallback: Array<{
     personalization: Personalization;

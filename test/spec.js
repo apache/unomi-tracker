@@ -21,18 +21,21 @@ const tracker = unomi.useTracker();
 
 assert(tracker !== null);
 
-// sendCredentials controls xhr.withCredentials
+// Requests sent by wem.ajax for a given tracker configuration
 globalThis.document = { cookie: 'wem-session-id=test-session' };
 globalThis.XMLHttpRequest = class {
     constructor() {
         this.withCredentials = undefined;
+        this.headers = {};
     }
     open() {}
-    setRequestHeader() {}
+    setRequestHeader(name, value) {
+        this.headers[name] = value;
+    }
     send() {}
 };
 
-function withCredentialsFor(wemInitConfig) {
+function requestFor(wemInitConfig) {
     const t = unomi.useTracker();
     t.initTracker({ wemInitConfig: Object.assign({ contextServerUrl: '', timeoutInMilliseconds: -1 }, wemInitConfig) });
     let sentXhr;
@@ -43,15 +46,24 @@ function withCredentialsFor(wemInitConfig) {
         }
     };
     try {
-        t.ajax({ type: 'POST', url: '/context.json', async: true });
+        t.ajax({ type: 'POST', url: '/context.json', async: true, contentType: 'text/plain;charset=UTF-8' });
     } finally {
         globalThis.XMLHttpRequest = OriginalXHR;
     }
-    return sentXhr.withCredentials;
+    return sentXhr;
+}
+
+function withCredentialsFor(wemInitConfig) {
+    return requestFor(wemInitConfig).withCredentials;
 }
 
 assert.strictEqual(withCredentialsFor({}), true, 'credentials are sent by default');
 assert.strictEqual(withCredentialsFor({ sendCredentials: true }), true, 'credentials are sent when sendCredentials is true');
 assert.strictEqual(withCredentialsFor({ sendCredentials: false }), false, 'credentials are not sent when sendCredentials is false');
+
+assert.strictEqual(requestFor({}).headers['X-Unomi-Api-Key'], undefined, 'no API key header by default');
+assert.strictEqual(requestFor({ apiKey: '' }).headers['X-Unomi-Api-Key'], undefined, 'no API key header for an empty key');
+assert.strictEqual(requestFor({ apiKey: 'public-key' }).headers['X-Unomi-Api-Key'], 'public-key', 'API key header is sent when apiKey is set');
+assert.strictEqual(requestFor({ apiKey: 'public-key' }).headers['Content-Type'], 'text/plain;charset=UTF-8', 'other headers are unchanged');
 
 console.log('Tests passed');

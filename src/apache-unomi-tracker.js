@@ -27,6 +27,8 @@ export const useTracker = () => {
         browserGeneratedSessionSuffix: '',
         disableTrackedConditionsListeners: false,
         sendCredentials: true,
+        /** @type {string | undefined} */
+        apiKey: undefined,
         activateWem: true,
         contextServerCookieName: 'context-profile-id',
         contextServerUrl: '',
@@ -55,6 +57,7 @@ export const useTracker = () => {
             wem.browserGeneratedSessionSuffix =  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix ?  wem.digitalData.wemInitConfig.browserGeneratedSessionSuffix : '';
             wem.disableTrackedConditionsListeners =  wem.digitalData.wemInitConfig.disableTrackedConditionsListeners || false;
             wem.sendCredentials = wem.digitalData.wemInitConfig.sendCredentials !== false;
+            wem.apiKey = wem.digitalData.wemInitConfig.apiKey || undefined;
             wem.activateWem = wem.digitalData.wemInitConfig.activateWem;
 
             const { contextServerUrl, timeoutInMilliseconds, contextServerCookieName } = wem.digitalData.wemInitConfig;
@@ -702,6 +705,10 @@ export const useTracker = () => {
             }
             if (options.dataType) {
                 xhr.setRequestHeader('Accept', options.dataType);
+            }
+            if (wem.apiKey) {
+                // Unomi 4 resolves the tenant from its public API key. Older servers ignore this header.
+                xhr.setRequestHeader('X-Unomi-Api-Key', wem.apiKey);
             }
 
             if (options.responseType) {
