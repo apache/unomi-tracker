@@ -36,7 +36,6 @@ tracker.initTracker({
             categories: [],
             tags: []
         },
-        attributes: {},
         consentTypes: []
     },
     events: [],
@@ -50,7 +49,8 @@ tracker.initTracker({
     }
 });
 
-// Unomi manual tutorial, with the Unomi 4 multi-tenant options
+// Configuration from the Unomi manual tutorial up to 2026, which still had page "attributes",
+// with the Unomi 4 multi-tenant options
 tracker.initTracker({
     scope: 'unomi-tracker-test',
     site: { siteInfo: { siteID: 'unomi-tracker-test' } },

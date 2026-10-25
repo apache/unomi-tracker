@@ -77,8 +77,9 @@ reports them as passed while the bug is there, and fails them once it is fixed, 
 gets removed:
 - The UMD build throws `Buffer is not defined` in a browser: es6-crawler-detect calls
   `Buffer.byteLength`. The test page adds a small shim so that the other tests can run.
-- Events from a page whose `digitalData.page` has `attributes` (as the Unomi manual shows) are
-  dropped by the server: the page schema does not allow that property.
+- Events from a page whose `digitalData.page` has `attributes` (as the Unomi manual tutorial
+  showed) are dropped by the server: the page schema does not allow that property since
+  UNOMI-790 (Unomi 2.4.0).
 
 Files
 -----

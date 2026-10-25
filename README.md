@@ -50,7 +50,6 @@ const digitalData = {
             categories: [],
             tags: []
         },
-        attributes: {},
         consentTypes: []
     },
     events: [],
