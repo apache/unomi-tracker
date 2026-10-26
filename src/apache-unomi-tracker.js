@@ -62,8 +62,7 @@ export const newTracker = () => {
             let noSessionID = !wem.sessionID || wem.sessionID === '';
             let crawlerDetected = navigator.userAgent;
             if (crawlerDetected) {
-                const browserDetector = new Crawler();
-                crawlerDetected = browserDetector.isCrawler(navigator.userAgent);
+                crawlerDetected = wem._isCrawler(navigator.userAgent);
             }
             if (cookieDisabled || noSessionID || crawlerDetected) {
                 document.addEventListener('DOMContentLoaded', function () {
@@ -539,7 +538,7 @@ export const newTracker = () => {
          * @returns {object} the target page
          */
         buildTargetPage: function () {
-            return wem.buildTarget(wem.digitalData.page.pageInfo.pageID, 'page', wem.digitalData.page);
+            return wem.buildTarget(wem.digitalData.page.pageInfo.pageID, 'page', wem._pageProperties());
         },
 
         /**
@@ -548,7 +547,7 @@ export const newTracker = () => {
          * @returns {object} the source page
          */
         buildSourcePage: function () {
-            return wem.buildSource(wem.digitalData.page.pageInfo.pageID, 'page', wem.digitalData.page);
+            return wem.buildSource(wem.digitalData.page.pageInfo.pageID, 'page', wem._pageProperties());
         },
 
         /**
@@ -1440,6 +1439,82 @@ export const newTracker = () => {
          */
         _isObject: function (obj) {
             return obj && typeof obj === 'object';
+        },
+
+        /**
+         * The page properties sent with events: digitalData.page, without an empty "attributes".
+         * Unomi rejects page "attributes" with content, and Unomi 2.4 and later also reject an empty one,
+         * so an empty one would only get the event dropped. A non-empty one is sent as before, for
+         * deployments that extended the page schema to accept it.
+         * digitalData.page itself is never changed.
+         *
+         * @private
+         * @return {object} the page properties
+         */
+        _pageProperties: function () {
+            var page = wem.digitalData.page;
+            var attributes = page ? page.attributes : undefined;
+            if (!attributes || typeof attributes !== 'object' || Object.keys(attributes).length > 0) {
+                return page;
+            }
+            var properties = {};
+            Object.keys(page).forEach(function (key) {
+                if (key !== 'attributes') {
+                    properties[key] = page[key];
+                }
+            });
+            return properties;
+        },
+
+        /**
+         * Number of bytes of a string encoded in UTF-8, as Node's Buffer.byteLength(value, 'utf8')
+         *
+         * @private
+         * @param {string} value the string
+         * @return {number} the number of bytes
+         */
+        _utf8ByteLength: function (value) {
+            var bytes = 0;
+            for (var i = 0; i < value.length; i++) {
+                var code = value.charCodeAt(i);
+                if (code < 0x80) {
+                    bytes += 1;
+                } else if (code < 0x800) {
+                    bytes += 2;
+                } else if (code >= 0xD800 && code <= 0xDBFF && i + 1 < value.length && (value.charCodeAt(i + 1) & 0xFC00) === 0xDC00) {
+                    bytes += 4;
+                    i++;
+                } else {
+                    // includes unpaired surrogates, which UTF-8 encoders replace with U+FFFD
+                    bytes += 3;
+                }
+            }
+            return bytes;
+        },
+
+        /**
+         * Whether the user agent is a web crawler, using es6-crawler-detect.
+         * The library calls Buffer.byteLength, which browsers do not have. When Buffer exists (Node, or a
+         * bundler polyfill) the library is called as is. Otherwise it gets a Buffer.byteLength for the
+         * duration of the call only: the call is synchronous, so no other code can see it.
+         *
+         * @private
+         * @param {string} userAgent the user agent
+         * @return {boolean} true for a crawler
+         */
+        _isCrawler: function (userAgent) {
+            var detector = new Crawler();
+            /* global Buffer */
+            if (typeof Buffer !== 'undefined') {
+                return detector.isCrawler(userAgent);
+            }
+            var root = typeof window !== 'undefined' ? window : globalThis;
+            root.Buffer = { byteLength: wem._utf8ByteLength };
+            try {
+                return detector.isCrawler(userAgent);
+            } finally {
+                delete root.Buffer;
+            }
         }
     };
 
