@@ -2,7 +2,7 @@
   "name": "apache-unomi-tracker",
   "repository": "apache/unomi-tracker",
   "author": "unomi <dev@unomi.apache.org>",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "A web tracker for Apache Unomi",
   "main": "dist/apache-unomi-tracker.cjs.js",
   "module": "dist/apache-unomi-tracker.esm.js",
@@ -14,6 +14,7 @@
   "scripts": {
     "build": "rollup -c",
     "test": "node test/spec",
+    "test:servers": "node test/servers/run.js",
     "pretest": "yarn run build",
     "lint": "eslint --ext js,json ."
   },
@@ -21,6 +22,7 @@
     "@babel/core": "^7.18.13",
     "@babel/plugin-transform-runtime": "^7.18.10",
     "@babel/preset-env": "^7.18.10",
+    "@playwright/test": "1.64.1",
     "@rollup/plugin-babel": "^5.3.1",
     "@rollup/plugin-commonjs": "^22.0.2",
     "@rollup/plugin-node-resolve": "^13.3.0",

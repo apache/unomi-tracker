@@ -1,0 +1,78 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Unomi servers for the tracker compatibility tests. Run them through
+# `yarn test:servers`, which starts one profile at a time on port 8181.
+# Each profile can also be started by hand, for example:
+#   docker compose -f test/servers/docker-compose.yml --profile unomi3 up -d
+
+x-elasticsearch: &elasticsearch
+  environment:
+    - discovery.type=single-node
+    - xpack.security.enabled=false
+    - cluster.name=contextElasticSearch
+    - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+  healthcheck:
+    test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+    interval: 5s
+    timeout: 5s
+    retries: 60
+
+services:
+  elasticsearch7:
+    <<: *elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ES7_VERSION:-7.17.28}
+    profiles: ["unomi2-legacy", "unomi2"]
+
+  elasticsearch9-1:
+    <<: *elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ES9_1_VERSION:-9.1.3}
+    profiles: ["unomi3"]
+
+  # Unomi 2.3 is the last version whose page schema allows an empty "attributes" (UNOMI-790)
+  unomi2-legacy:
+    image: apache/unomi:${UNOMI2_LEGACY_VERSION:-2.3.0}
+    profiles: ["unomi2-legacy"]
+    environment:
+      - UNOMI_ELASTICSEARCH_ADDRESSES=elasticsearch7:9200
+    ports:
+      - "${UNOMI_PORT:-8181}:8181"
+    depends_on:
+      elasticsearch7:
+        condition: service_healthy
+
+  unomi2:
+    image: apache/unomi:${UNOMI2_VERSION:-2.7.0}
+    profiles: ["unomi2"]
+    environment:
+      - UNOMI_ELASTICSEARCH_ADDRESSES=elasticsearch7:9200
+    ports:
+      - "${UNOMI_PORT:-8181}:8181"
+    depends_on:
+      elasticsearch7:
+        condition: service_healthy
+
+  unomi3:
+    image: apache/unomi:${UNOMI3_VERSION:-3.0.0}
+    profiles: ["unomi3"]
+    environment:
+      - UNOMI_ELASTICSEARCH_ADDRESSES=elasticsearch9-1:9200
+    ports:
+      - "${UNOMI_PORT:-8181}:8181"
+    depends_on:
+      elasticsearch9-1:
+        condition: service_healthy
