@@ -275,3 +275,4 @@ yalc.lock
 # Tracker server tests (test/servers)
 test/servers/test-results/
 playwright-report/
+test/servers/.cache/

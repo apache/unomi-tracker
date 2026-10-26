@@ -36,7 +36,7 @@ services:
   elasticsearch7:
     <<: *elasticsearch
     image: docker.elastic.co/elasticsearch/elasticsearch:${ES7_VERSION:-7.17.28}
-    profiles: ["unomi2"]
+    profiles: ["unomi2-legacy", "unomi2"]
 
   elasticsearch9-1:
     <<: *elasticsearch
@@ -47,6 +47,18 @@ services:
     <<: *elasticsearch
     image: docker.elastic.co/elasticsearch/elasticsearch:${ES9_4_VERSION:-9.4.3}
     profiles: ["unomi4", "unomi4-compat"]
+
+  # Unomi 2.3 is the last version whose page schema allows an empty "attributes" (UNOMI-790)
+  unomi2-legacy:
+    image: apache/unomi:${UNOMI2_LEGACY_VERSION:-2.3.0}
+    profiles: ["unomi2-legacy"]
+    environment:
+      - UNOMI_ELASTICSEARCH_ADDRESSES=elasticsearch7:9200
+    ports:
+      - "${UNOMI_PORT:-8181}:8181"
+    depends_on:
+      elasticsearch7:
+        condition: service_healthy
 
   unomi2:
     image: apache/unomi:${UNOMI2_VERSION:-2.7.0}
