@@ -268,3 +268,7 @@ storybook-static/
 yalc.lock
 .yalc
 *.iml
+# Tracker server tests (test/servers)
+test/servers/test-results/
+test/servers/.cache/
+playwright-report/

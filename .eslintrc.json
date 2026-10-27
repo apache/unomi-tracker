@@ -6,6 +6,13 @@
     "extends": "eslint:recommended",
     "plugins": ["json"],
     "overrides": [
+        {
+            "files": ["test/servers/**/*.js"],
+            "excludedFiles": ["test/servers/page/**"],
+            "env": {
+                "node": true
+            }
+        }
     ],
     "parserOptions": {
         "ecmaVersion": "latest",
