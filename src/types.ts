@@ -7,36 +7,46 @@ export interface DigitalData {
   };
   page: {
     pageInfo: PageInfo;
+    /** Sent with the page properties. The default Unomi page schema does not allow it. */
+    attributes?: Record<string, unknown>;
     consentTypes: string[];
   };
-  events: UnomiEvent[];
-  interests: unknown;
-  contextServerPublicUrl: string;
-  sourceLocalIdentifierMap: unknown;
+  events?: UnomiEvent[];
+  interests?: unknown;
+  contextServerPublicUrl?: string;
+  sourceLocalIdentifierMap?: unknown;
   wemInitConfig: {
     contextServerUrl: string;
-    isPreview: boolean;
+    isPreview?: boolean;
     timeoutInMilliseconds: number;
-    dxUsername: string;
+    dxUsername?: string;
     contextServerCookieName: string;
     activateWem: boolean;
-    enableWemActionUrl: string;
-    requiredProfileProperties: string[];
-    requiredSessionProperties: string[];
-    requireSegments: boolean;
-    requireScores: boolean;
+    enableWemActionUrl?: string;
+    requiredProfileProperties?: string[];
+    requiredSessionProperties?: string[];
+    requireSegments?: boolean;
+    requireScores?: boolean;
     trackerProfileIdCookieName?: string;
     trackerSessionIdCookieName?: string;
     browserGeneratedSessionSuffix?: string;
     disableTrackedConditionsListeners?: boolean;
     /**
      * When false, tracker requests are sent without cookies. Default true.
-     * The server profile cookie is then not sent, so the profile is resolved
-     * from the session only and does not persist across sessions.
+     * The server profile cookie is then not sent: Unomi 2.x and 3.x find the
+     * profile through the session only, and Unomi 4 creates a new anonymous
+     * profile on every request.
      */
     sendCredentials?: boolean;
+    /**
+     * Public API key of the Unomi 4 tenant, sent as the X-Unomi-Api-Key header.
+     * Leave unset for Unomi 2.x, Unomi 3.x, or Unomi 4 in single-tenant compatibility mode.
+     * Never use a private key here: the tracker configuration is visible to visitors.
+     * Setting it makes browsers send a CORS preflight before each request.
+     */
+    apiKey?: string;
   };
-  personalizationCallback: Array<{
+  personalizationCallback?: Array<{
     personalization: Personalization;
     callback: PersonalizationCallback;
   }>;
@@ -50,13 +60,13 @@ export interface DigitalData {
 
 export interface PageInfo {
   pageID: string;
-  nodeType: string;
+  nodeType?: string;
   pageName: string;
   pagePath: string;
-  templateName: string;
+  templateName?: string;
   destinationURL: string;
-  destinationSearch: string;
-  referringURL: string;
+  destinationSearch?: string;
+  referringURL?: string;
   language: string;
   categories: string[];
   tags: string[];
