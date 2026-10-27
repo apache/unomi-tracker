@@ -23,7 +23,9 @@ const SCOPE = 'tracker-test';
 
 // Unomi 2.x and 3.x have no tenants and accept cookies from any origin.
 // Unomi 4 only accepts cookies from listed origins (here http://localhost:8000, not http://localhost:8001).
+// Unomi 2.0 to 2.3 accept an empty page "attributes"; 2.4 removed it from the page schema (UNOMI-790).
 const TARGETS = {
+    'unomi2-legacy': { major: 2, multiTenant: false, admin: 'karaf:karaf' },
     'unomi2': { major: 2, multiTenant: false, admin: 'karaf:karaf' },
     'unomi3': { major: 3, multiTenant: false, admin: 'karaf:karaf' },
     'unomi4': { major: 4, multiTenant: true, admin: 'karaf:' + ROOT_PASSWORD },

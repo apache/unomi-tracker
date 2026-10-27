@@ -17,12 +17,14 @@
 
 // Runs the browser tests against each Unomi server version, one after the other.
 //
-//   yarn test:servers                    all servers
+//   yarn test:servers                    the comparison with 1.5.0, then all servers
 //   yarn test:servers unomi2 unomi4      only these servers
+//   yarn test:servers compare-1.5.0      only the comparison with 1.5.0 (no Docker needed)
 //   yarn test:servers --keep unomi4      leave the server running afterwards
 //
 // Not part of CI: it needs Docker and takes several minutes.
 const { spawnSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 const { TARGETS } = require('./unomi');
 
@@ -30,12 +32,13 @@ const root = path.join(__dirname, '..', '..');
 const composeFile = path.join(__dirname, 'docker-compose.yml');
 const args = process.argv.slice(2);
 const keep = args.includes('--keep');
+const COMPARE = 'compare-1.5.0';
 const names = args.filter(arg => !arg.startsWith('--'));
-const selected = names.length > 0 ? names : Object.keys(TARGETS);
+const selected = names.length > 0 ? names : [COMPARE].concat(Object.keys(TARGETS));
 
 for (const name of selected) {
-    if (!TARGETS[name]) {
-        console.error('Unknown server "' + name + '", expected one of: ' + Object.keys(TARGETS).join(', '));
+    if (name !== COMPARE && !TARGETS[name]) {
+        console.error('Unknown name "' + name + '", expected one of: ' + [COMPARE].concat(Object.keys(TARGETS)).join(', '));
         process.exit(2);
     }
 }
@@ -54,8 +57,26 @@ if (!run('yarn', ['build'])) {
     process.exit(1);
 }
 
+// The published 1.5.0 tracker, for the comparison
+function downloadPublishedTracker() {
+    const directory = path.join(__dirname, '.cache', 'apache-unomi-tracker-1.5.0');
+    if (fs.existsSync(path.join(directory, 'package', 'dist', 'apache-unomi-tracker.umd.js'))) {
+        return true;
+    }
+    fs.mkdirSync(directory, { recursive: true });
+    return run('npm', ['pack', 'apache-unomi-tracker@1.5.0', '--pack-destination', directory])
+        && run('tar', ['xzf', path.join(directory, 'apache-unomi-tracker-1.5.0.tgz'), '-C', directory]);
+}
+
 const results = [];
-for (const name of selected) {
+if (selected.includes(COMPARE)) {
+    console.log('\n=== ' + COMPARE);
+    const passed = downloadPublishedTracker()
+        && run('npx', ['playwright', 'test', '-c', path.join(__dirname, 'playwright.compare.config.js')]);
+    results.push({ name: COMPARE, passed });
+}
+
+for (const name of selected.filter(name => name !== COMPARE)) {
     console.log('\n=== ' + name);
     let passed = false;
     try {

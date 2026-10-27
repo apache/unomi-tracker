@@ -61,23 +61,28 @@ async function expectStoredClick(click) {
 }
 
 test.describe(server.name, () => {
-    test('the browser build runs without Node polyfills', async ({ page }) => {
-        // Known bug: es6-crawler-detect calls Buffer.byteLength, so the UMD build throws in a browser.
-        // Remove test.fail() once the build works without the shim.
-        test.fail();
+    test('the browser build runs without a Buffer polyfill', async ({ page }) => {
         const errors = [];
         page.on('pageerror', error => errors.push(error.message));
-        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ noBufferShim: 'true' }, siteConfig), 10000);
+        const { context } = await openPage(page, LISTED_ORIGIN, siteConfig);
         expect(errors).toEqual([]);
         expect(context.loaded).toBe(true);
     });
 
-    test('collects events from a page with "attributes", as the Unomi manual shows', async ({ page }) => {
-        // Known bug: the tracker sends digitalData.page as the page properties, and the page schema
-        // does not allow "attributes", so Unomi drops the events. Remove test.fail() once fixed.
-        test.fail();
-        await openPage(page, LISTED_ORIGIN, Object.assign({ pageAttributes: 'true' }, siteConfig));
-        await expectStoredClick(await sendClick(page, 'page-attributes'));
+    test('collects events from a page with empty "attributes", as the Unomi manual showed', async ({ page }) => {
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ pageAttributes: '{}' }, siteConfig));
+        expect(context.loaded).toBe(true);
+        await expectStoredClick(await sendClick(page, 'empty-page-attributes'));
+    });
+
+    test('sends non-empty page "attributes" as before', async ({ page }) => {
+        // No default page schema accepts attributes with content, so the server drops the event, as with
+        // 1.5.0 (compare-1.5.0 checks that the request is the same). Unomi 2.0 to 2.3 accept an empty one.
+        await openPage(page, LISTED_ORIGIN, Object.assign({ pageAttributes: '{"color":"blue"}' }, siteConfig));
+        const click = await sendClick(page, 'page-attributes');
+        expect(click.sent).toBe(true);
+        const events = await findClickEvents(process.env.UNOMI_READ_CREDENTIALS, click.targetId, 5000);
+        expect(events).toHaveLength(0);
     });
 
     test('loads the context and collects an event with the site configuration', async ({ page }) => {

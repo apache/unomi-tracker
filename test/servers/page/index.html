@@ -20,17 +20,20 @@
     <meta charset="utf-8">
     <title>Unomi tracker test page</title>
     <script>
-        // The crawler detection library calls Buffer.byteLength, which browsers do not have.
-        // ?noBufferShim loads the tracker without this shim, to check the bug is still there.
-        if (!new URLSearchParams(document.location.search).has('noBufferShim') && typeof window.Buffer === 'undefined') {
+        // A "tracker=1.5.0" cookie loads the published 1.5.0 tracker instead of the current build (a cookie,
+        // because the tracker sends the URL parameters). Sites using 1.5.0 always have a Buffer polyfill
+        // (it fails without one), so add one for it only.
+        if (document.cookie.split('; ').indexOf('tracker=1.5.0') !== -1) {
             window.Buffer = {
                 byteLength: function (value) {
                     return new TextEncoder().encode(value).length;
                 }
             };
+            document.write('<script src="/tracker-1.5.0.js"><\/script>');
+        } else {
+            document.write('<script src="/tracker.js"><\/script>');
         }
     </script>
-    <script src="/tracker.js"></script>
 </head>
 <body>
 <script>
@@ -39,7 +42,8 @@
     //   apiKey           wemInitConfig.apiKey (optional)
     //   sendCredentials  wemInitConfig.sendCredentials, "true" or "false" (optional)
     //   noBufferShim     load the tracker without the Buffer shim (optional)
-    //   pageAttributes   add "attributes": {} to digitalData.page, as the Unomi manual does (optional)
+    //   pageAttributes   digitalData.page.attributes as JSON, for example {} (optional)
+    //   sessionId        session ID to use instead of a new one (optional)
     (function () {
         const params = new URLSearchParams(document.location.search);
         const wemInitConfig = {
@@ -76,11 +80,13 @@
         };
 
         if (params.has('pageAttributes')) {
-            digitalData.page.attributes = {};
+            digitalData.page.attributes = JSON.parse(params.get('pageAttributes'));
         }
 
         const tracker = window['apache-unomi-tracker'].useTracker();
-        if (tracker.getCookie(wemInitConfig.trackerSessionIdCookieName) == null) {
+        if (params.has('sessionId')) {
+            tracker.setCookie(wemInitConfig.trackerSessionIdCookieName, params.get('sessionId'), 1);
+        } else if (tracker.getCookie(wemInitConfig.trackerSessionIdCookieName) == null) {
             tracker.setCookie(wemInitConfig.trackerSessionIdCookieName, tracker.generateGuid(), 1);
         }
 

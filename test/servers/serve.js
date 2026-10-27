@@ -25,7 +25,9 @@ const path = require('path');
 const PORTS = [8000, 8001];
 const files = {
     '/': { file: path.join(__dirname, 'page', 'index.html'), type: 'text/html; charset=utf-8' },
-    '/tracker.js': { file: path.join(__dirname, '..', '..', 'dist', 'apache-unomi-tracker.umd.js'), type: 'text/javascript; charset=utf-8' }
+    '/tracker.js': { file: path.join(__dirname, '..', '..', 'dist', 'apache-unomi-tracker.umd.js'), type: 'text/javascript; charset=utf-8' },
+    // Downloaded by run.js, for the comparison with the published 1.5.0
+    '/tracker-1.5.0.js': { file: path.join(__dirname, '.cache', 'apache-unomi-tracker-1.5.0', 'package', 'dist', 'apache-unomi-tracker.umd.js'), type: 'text/javascript; charset=utf-8' }
 };
 
 function handle(request, response) {
