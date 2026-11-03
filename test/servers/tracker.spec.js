@@ -16,7 +16,7 @@
  */
 
 const { test, expect } = require('@playwright/test');
-const { UNOMI_URL, target, tenantOf, findClickEvents } = require('./unomi');
+const { UNOMI_URL, FORM_NAME, target, tenantOf, findEvents, findClickEvents } = require('./unomi');
 
 const server = target(process.env.UNOMI_TARGET);
 const LISTED_ORIGIN = 'http://localhost:8000';
@@ -154,5 +154,53 @@ test.describe(server.name, () => {
         const { context } = await openPage(page, UNLISTED_ORIGIN, Object.assign({ sendCredentials: 'false' }, siteConfig));
         expect(context.loaded).toBe(true);
         await expectStoredClick(await sendClick(page, 'unlisted-no-cookies'));
+    });
+
+    test('shows the personalized variant that Unomi chooses', async ({ page }) => {
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ personalization: 'true' }, siteConfig));
+        expect(context.loaded).toBe(true);
+        expect(await page.evaluate(() => window.trackerTest.shownVariants())).toEqual(['variant-always']);
+    });
+
+    test('shows the fallback variant when Unomi cannot be reached', async ({ page }) => {
+        await page.route(UNOMI_URL + '/**', route => route.abort('connectionrefused'));
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ personalization: 'true' }, siteConfig));
+        expect(context.loaded).toBe(false);
+        expect(await page.evaluate(() => window.trackerTest.shownVariants())).toEqual(['variant-fallback']);
+    });
+
+    test('shows the fallback variant when Unomi does not answer in time', async ({ page }) => {
+        // The requests are never answered: the tracker gives up after timeoutInMilliseconds
+        await page.route(UNOMI_URL + '/**', () => {});
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ personalization: 'true', timeout: '1000' }, siteConfig));
+        expect(context.loaded).toBe(false);
+        expect(await page.evaluate(() => window.trackerTest.shownVariants())).toEqual(['variant-fallback']);
+    });
+
+    test('tracks every click on an element sent with sendClickEvent', async ({ page }) => {
+        const buttonId = 'tracked-button-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: buttonId }, siteConfig));
+        expect(context.loaded).toBe(true);
+        await page.click('#' + buttonId);
+        expect(await findEvents(process.env.UNOMI_READ_CREDENTIALS, buttonId)).toHaveLength(1);
+        await page.click('#' + buttonId);
+        expect(await findEvents(process.env.UNOMI_READ_CREDENTIALS, buttonId, { minCount: 2 })).toHaveLength(2);
+    });
+
+    test('sends the submit of a form that Unomi tracks, then lets the site handle it', async ({ page }) => {
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ form: FORM_NAME }, siteConfig));
+        expect(context.loaded).toBe(true);
+        expect(await page.evaluate(() => window.trackerTest.watchedForms())).toContain(FORM_NAME);
+        await page.click('#submit-form');
+        const events = await findEvents(process.env.UNOMI_READ_CREDENTIALS, FORM_NAME);
+        expect(events.length).toBeGreaterThan(0);
+        expect(events.map(event => event.eventType)).toContain('form');
+        expect(events.map(event => event.flattenedProperties && event.flattenedProperties.fields)).toContainEqual({
+            email: 'tracker-test@example.com',
+            topics: ['news'],
+            country: 'ch'
+        });
+        // The tracker holds the submit back until the event is sent, then lets it go on, once
+        await expect.poll(() => page.evaluate(() => window.trackerTest.siteSubmits())).toBe(1);
     });
 });

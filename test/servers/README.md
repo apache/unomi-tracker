@@ -85,6 +85,17 @@ For each server:
   Non-empty `attributes` are sent as before; no default page schema accepts them, so the server
   drops the event, as with 1.5.0. Unomi 2.0 to 2.3 accept an empty one; 2.4 and later reject it
   too (UNOMI-790).
+- Personalization: Unomi chooses the variant whose condition matches, and the tracker displays it.
+  When Unomi cannot be reached, or does not answer within `timeoutInMilliseconds`, the tracker
+  falls back and displays the fallback variant.
+- Every click on an element sent with `sendClickEvent` is stored, not only the first (UNOMI-1037).
+- A form: the setup adds a rule on its submit, so Unomi returns it in the tracked conditions and
+  the tracker watches it. On submit, the form event is stored with the field values (text, checked
+  checkboxes, selected option), then the site's own submit handler runs, once.
+
+Not tested yet: optimization tests, search and video events, `invalidateSessionAndProfile`,
+digitalData overrides, other browsers than Chromium, and a site and Unomi on different domains
+(the test origins are all on localhost, which browsers treat as one site).
 
 Files
 -----

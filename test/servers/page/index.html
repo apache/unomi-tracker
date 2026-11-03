@@ -44,11 +44,15 @@
     //   noBufferShim     load the tracker without the Buffer shim (optional)
     //   pageAttributes   digitalData.page.attributes as JSON, for example {} (optional)
     //   sessionId        session ID to use instead of a new one (optional)
+    //   timeout          wemInitConfig.timeoutInMilliseconds (optional, 10000 by default)
+    //   personalization  "true": a personalized area with three variants (optional)
+    //   clickButton      id of a button whose clicks are sent with sendClickEvent (optional)
+    //   form             name of a form, watched by the tracker when Unomi tracks it (optional)
     (function () {
         const params = new URLSearchParams(document.location.search);
         const wemInitConfig = {
             contextServerUrl: params.get('unomi'),
-            timeoutInMilliseconds: 10000,
+            timeoutInMilliseconds: params.has('timeout') ? Number(params.get('timeout')) : 10000,
             contextServerCookieName: 'context-profile-id',
             activateWem: true,
             trackerSessionIdCookieName: 'tracker-test-session-id',
@@ -93,7 +97,78 @@
         // initTracker replaces the tracker configuration, so register the callback after it
         tracker.initTracker(digitalData);
 
+        // A personalized area: Unomi picks "always" (its condition always matches) over "never" (its
+        // condition never matches); "fallback" is shown when Unomi cannot be reached.
+        const personalizedArea = document.createElement('div');
+        if (params.get('personalization') === 'true') {
+            personalizedArea.id = 'tracker-test-personalization';
+            ['never', 'always', 'fallback'].forEach(function (name) {
+                const variant = document.createElement('div');
+                variant.id = 'variant-' + name;
+                variant.textContent = name;
+                personalizedArea.appendChild(variant);
+            });
+            document.body.appendChild(personalizedArea);
+            tracker.registerPersonalizationObject({
+                id: personalizedArea.id,
+                strategy: 'matching-first',
+                strategyOptions: { fallback: 'fallback' },
+                contents: [
+                    { id: 'never', filters: [{ condition: { type: 'profilePropertyCondition', parameterValues: { propertyName: 'properties.trackerTestNever', comparisonOperator: 'exists' } } }] },
+                    { id: 'always', filters: [{ condition: { type: 'matchAllCondition', parameterValues: {} } }] }
+                ]
+            }, {
+                never: { content: 'variant-never', position: 0 },
+                always: { content: 'variant-always', position: 1 },
+                fallback: { content: 'variant-fallback', position: 2 }
+            });
+        }
+
+        // A button sending its clicks the way the Unomi manual shows
+        if (params.has('clickButton')) {
+            const button = document.createElement('button');
+            button.id = params.get('clickButton');
+            button.type = 'button';
+            button.textContent = 'Tracked button';
+            button.addEventListener('click', tracker.sendClickEvent);
+            document.body.appendChild(button);
+        }
+
+        // A form with the usual fields. The site handles the submit itself (like a form sent with
+        // JavaScript), so the page stays open; the tracker must send the form event, then let it run.
+        let siteSubmits = 0;
+        if (params.has('form')) {
+            const form = document.createElement('form');
+            form.setAttribute('name', params.get('form'));
+            form.innerHTML = '<input type="email" name="email" value="tracker-test@example.com">'
+                + '<input type="checkbox" name="topics" value="news" checked>'
+                + '<input type="checkbox" name="topics" value="offers">'
+                + '<select name="country"><option value="fr">France</option><option value="ch" selected>Switzerland</option></select>'
+                + '<button type="submit" id="submit-form">Send</button>';
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                siteSubmits++;
+            });
+            document.body.appendChild(form);
+        }
+
         window.trackerTest = {
+            // The variants of the personalized area that are displayed
+            shownVariants: function () {
+                return Array.prototype.filter.call(personalizedArea.children, function (variant) {
+                    return variant.style.display !== 'none';
+                }).map(function (variant) {
+                    return variant.id;
+                });
+            },
+            // How many times the site's own submit handler ran
+            siteSubmits: function () {
+                return siteSubmits;
+            },
+            // The forms the tracker watches (those Unomi returned in the tracked conditions)
+            watchedForms: function () {
+                return tracker.getFormNamesToWatch();
+            },
             // Resolves once the context is loaded, or once the tracker falls back after an error
             context: new Promise(function (resolve) {
                 tracker._registerCallback(function () {

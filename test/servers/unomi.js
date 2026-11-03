@@ -210,8 +210,33 @@ async function ensureScope(credentials) {
     });
 }
 
+// A rule on the submits of the test form. Unomi returns its condition to the tracker in the
+// "tracked conditions" of the context, which is how the tracker knows which forms to watch.
+const FORM_NAME = 'tracker-test-form';
+async function ensureFormRule(credentials, publicKey) {
+    await request('POST', '/cxs/rules', {
+        credentials: credentials,
+        body: {
+            metadata: { id: 'tracker-test-form-rule', name: 'Tracker test form', scope: SCOPE, enabled: true },
+            condition: { type: 'formEventCondition', parameterValues: { formId: FORM_NAME } },
+            actions: [{ type: 'setPropertyAction', parameterValues: { setPropertyName: 'properties.trackerTestForm', setPropertyValue: 'sent', setPropertyStrategy: 'alwaysSet' } }]
+        }
+    });
+    // Rules are loaded in the background: wait until the context returns the condition
+    await retry(async () => {
+        const context = await request('POST', '/cxs/context.json', {
+            headers: publicKey ? { 'X-Unomi-Api-Key': publicKey } : {},
+            body: { sessionId: 'tracker-test-probe', source: { scope: SCOPE, itemType: 'page', itemId: 'tracker-test-page' } }
+        });
+        const tracked = (context.trackedConditions || []).some(condition => condition.parameterValues && condition.parameterValues.formId === FORM_NAME);
+        if (!tracked) {
+            throw new Error('The form rule is not in the tracked conditions yet');
+        }
+    });
+}
+
 // Prepares the server before the tests: the tenant and its keys on Unomi 4, then the scope that
-// the tracker events use. Returns the tenant public key (Unomi 4 multi-tenant only) and the
+// the tracker events use, and the rule that makes the tracker watch the test form. Returns the tenant public key (Unomi 4 multi-tenant only) and the
 // credentials that can read the events.
 async function setUp(t) {
     await waitForServer();
@@ -233,12 +258,13 @@ async function setUp(t) {
     // In compatibility mode, administrator requests work on tenant "default"
     await ensureScope(credentials);
     await waitUntilStable(t, publicKey, credentials);
+    await ensureFormRule(credentials, publicKey);
     console.log('Server ready: ' + t.name + (tenantId ? ', tenant ' + tenantId : '') + ', scope ' + SCOPE);
     return { publicKey: publicKey, credentials: credentials };
 }
 
-// Polls until click events on the given target are indexed, and returns them.
-async function findClickEvents(credentials, targetId, timeoutMs = 15000) {
+// Polls until at least minCount events on the given target are indexed, and returns them.
+async function findEvents(credentials, targetId, { timeoutMs = 15000, minCount = 1 } = {}) {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
         const result = await request('POST', '/cxs/events/search', {
@@ -251,11 +277,17 @@ async function findClickEvents(credentials, targetId, timeoutMs = 15000) {
                 }
             }
         });
-        if ((result.list && result.list.length > 0) || Date.now() > deadline) {
-            return result.list || [];
+        const events = result.list || [];
+        if (events.length >= minCount || Date.now() > deadline) {
+            return events;
         }
         await sleep(1000);
     }
 }
 
-module.exports = { UNOMI_URL, TARGETS, target, tenantOf, setUp, findClickEvents };
+// Polls until click events on the given target are indexed, and returns them.
+async function findClickEvents(credentials, targetId, timeoutMs = 15000) {
+    return findEvents(credentials, targetId, { timeoutMs });
+}
+
+module.exports = { UNOMI_URL, TARGETS, FORM_NAME, target, tenantOf, setUp, findEvents, findClickEvents };
