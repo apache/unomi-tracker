@@ -152,7 +152,7 @@ Releases of other projects must depend on a released version instead.
 Testing
 -------
 - `yarn test`: unit tests, and a check that the documented configurations compile against the TypeScript types
-- `yarn test:servers`: browser tests against Unomi 2.x, 3.x and 4.x started with Docker; not part of CI, see [test/servers](test/servers/README.md)
+- `yarn test:servers`: browser tests against Unomi 2.x, 3.x and 4.x started with Docker; Unomi 3 and 4 must pass on every pull request, see [test/servers](test/servers/README.md)
 
 License
 -------

@@ -12,3 +12,9 @@ github:
         - root
       restrict_deletion: true
       restrict_force_push: true
+      # Job names from .github/workflows (not validated: a wrong name blocks every merge)
+      required_status_checks:
+        - "lint-tests"
+        - "build"
+        - "server-tests (unomi3)"
+        - "server-tests (unomi4)"
