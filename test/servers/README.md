@@ -88,10 +88,12 @@ For each server:
 - Personalization: Unomi chooses the variant whose condition matches, and the tracker displays it.
   When Unomi cannot be reached, or does not answer within `timeoutInMilliseconds`, the tracker
   falls back and displays the fallback variant.
-- Every click on an element sent with `sendClickEvent` is stored, not only the first (UNOMI-1037).
+- Every click on an element sent with `sendClickEvent` is stored, not only the first (UNOMI-1037),
+  both as an event listener and when the site passes a success callback.
 - A form: the setup adds a rule on its submit, so Unomi returns it in the tracked conditions and
   the tracker watches it. On submit, the form event is stored with the field values (text, checked
-  checkboxes, selected option), then the site's own submit handler runs, once.
+  checkboxes, selected option). The site's own submit handler runs once, only after the event is
+  sent, and gets the tracker's copy of the submit, not the visitor's own.
 
 Not tested yet: optimization tests, search and video events, `invalidateSessionAndProfile`,
 digitalData overrides, other browsers than Chromium, and a site and Unomi on different domains

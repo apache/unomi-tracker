@@ -47,6 +47,7 @@
     //   timeout          wemInitConfig.timeoutInMilliseconds (optional, 10000 by default)
     //   personalization  "true": a personalized area with three variants (optional)
     //   clickButton      id of a button whose clicks are sent with sendClickEvent (optional)
+    //   clickCallback    "true": the button passes a success callback to sendClickEvent (optional)
     //   form             name of a form, watched by the tracker when Unomi tracks it (optional)
     (function () {
         const params = new URLSearchParams(document.location.search);
@@ -124,19 +125,28 @@
             });
         }
 
-        // A button sending its clicks the way the Unomi manual shows
+        // A button sending its clicks the way the Unomi manual shows, or with a success callback, as a
+        // site does when it handles the click itself once the event is sent
         if (params.has('clickButton')) {
             const button = document.createElement('button');
             button.id = params.get('clickButton');
             button.type = 'button';
             button.textContent = 'Tracked button';
-            button.addEventListener('click', tracker.sendClickEvent);
+            if (params.get('clickCallback') === 'true') {
+                button.addEventListener('click', function (event) {
+                    tracker.sendClickEvent(event, function () {});
+                });
+            } else {
+                button.addEventListener('click', tracker.sendClickEvent);
+            }
             document.body.appendChild(button);
         }
 
         // A form with the usual fields. The site handles the submit itself (like a form sent with
         // JavaScript), so the page stays open; the tracker must send the form event, then let it run.
-        let siteSubmits = 0;
+        // Each submit the site's handler receives: the visitor's own submit is trusted, the copy the
+        // tracker dispatches once the event is sent is not
+        const siteSubmits = [];
         if (params.has('form')) {
             const form = document.createElement('form');
             form.setAttribute('name', params.get('form'));
@@ -147,7 +157,7 @@
                 + '<button type="submit" id="submit-form">Send</button>';
             form.addEventListener('submit', function (event) {
                 event.preventDefault();
-                siteSubmits++;
+                siteSubmits.push({ trusted: event.isTrusted });
             });
             document.body.appendChild(form);
         }
@@ -161,7 +171,7 @@
                     return variant.id;
                 });
             },
-            // How many times the site's own submit handler ran
+            // The submits the site's own handler received
             siteSubmits: function () {
                 return siteSubmits;
             },

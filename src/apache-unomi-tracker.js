@@ -459,9 +459,18 @@ export const useTracker = () => {
 
                     var target = event.target;
 
+                    // A callback replaces dispatching the click again, so forget the element here instead
+                    var release = function () {
+                        var index = wem.eventsPrevented.indexOf(targetId);
+                        if (index !== -1) {
+                            wem.eventsPrevented.splice(index, 1);
+                        }
+                    };
+
                     wem.collectEvent(clickEvent, function (xhr) {
                         console.debug('[WEM] Click event successfully collected.');
                         if (successCallback) {
+                            release();
                             successCallback(xhr);
                         } else {
                             target.click();
@@ -469,6 +478,7 @@ export const useTracker = () => {
                     }, function (xhr) {
                         console.error('[WEM] Could not send click event.');
                         if (errorCallback) {
+                            release();
                             errorCallback(xhr);
                         } else {
                             target.click();

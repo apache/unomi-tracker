@@ -170,37 +170,59 @@ test.describe(server.name, () => {
     });
 
     test('shows the fallback variant when Unomi does not answer in time', async ({ page }) => {
-        // The requests are never answered: the tracker gives up after timeoutInMilliseconds
+        // The requests are never answered: the tracker gives up after timeoutInMilliseconds (1s
+        // here, instead of the page's 10s), so the fallback must come well before 10s
         await page.route(UNOMI_URL + '/**', () => {});
+        const start = Date.now();
         const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ personalization: 'true', timeout: '1000' }, siteConfig));
+        expect(Date.now() - start).toBeLessThan(5000);
         expect(context.loaded).toBe(false);
         expect(await page.evaluate(() => window.trackerTest.shownVariants())).toEqual(['variant-fallback']);
     });
 
-    test('tracks every click on an element sent with sendClickEvent', async ({ page }) => {
-        const buttonId = 'tracked-button-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
-        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: buttonId }, siteConfig));
-        expect(context.loaded).toBe(true);
-        await page.click('#' + buttonId);
-        expect(await findEvents(process.env.UNOMI_READ_CREDENTIALS, buttonId)).toHaveLength(1);
-        await page.click('#' + buttonId);
-        expect(await findEvents(process.env.UNOMI_READ_CREDENTIALS, buttonId, { minCount: 2 })).toHaveLength(2);
-    });
+    for (const { name, config } of [
+        { name: 'as an event listener', config: {} },
+        { name: 'with a success callback', config: { clickCallback: 'true' } }
+    ]) {
+        test('tracks every click on an element sent with sendClickEvent ' + name, async ({ page }) => {
+            const buttonId = 'tracked-button-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
+            const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: buttonId }, config, siteConfig));
+            expect(context.loaded).toBe(true);
+            await page.click('#' + buttonId);
+            expect(await findEvents(process.env.UNOMI_READ_CREDENTIALS, buttonId)).toHaveLength(1);
+            await page.click('#' + buttonId);
+            expect(await findEvents(process.env.UNOMI_READ_CREDENTIALS, buttonId, { minCount: 2 })).toHaveLength(2);
+            await page.click('#' + buttonId);
+            expect(await findEvents(process.env.UNOMI_READ_CREDENTIALS, buttonId, { minCount: 3 })).toHaveLength(3);
+        });
+    }
 
     test('sends the submit of a form that Unomi tracks, then lets the site handle it', async ({ page }) => {
         const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ form: FORM_NAME }, siteConfig));
         expect(context.loaded).toBe(true);
         expect(await page.evaluate(() => window.trackerTest.watchedForms())).toContain(FORM_NAME);
+        // Unomi gets the form event 1.5s late, so the site must not see the submit before that
+        await page.route(UNOMI_URL + '/eventcollector', async route => {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            await route.continue();
+        });
         await page.click('#submit-form');
-        const events = await findEvents(process.env.UNOMI_READ_CREDENTIALS, FORM_NAME);
-        expect(events.length).toBeGreaterThan(0);
-        expect(events.map(event => event.eventType)).toContain('form');
-        expect(events.map(event => event.flattenedProperties && event.flattenedProperties.fields)).toContainEqual({
+        await page.waitForTimeout(700);
+        expect(await page.evaluate(() => window.trackerTest.siteSubmits())).toEqual([]);
+        // Only the events of this page: a server kept from an earlier run has older ones on the same form
+        const events = await findEvents(process.env.UNOMI_READ_CREDENTIALS, FORM_NAME, {
+            matching: event => event.sessionId === context.sessionId
+        });
+        expect(events).toHaveLength(1);
+        expect(events[0].eventType).toBe('form');
+        expect(events[0].flattenedProperties.fields).toEqual({
             email: 'tracker-test@example.com',
             topics: ['news'],
             country: 'ch'
         });
-        // The tracker holds the submit back until the event is sent, then lets it go on, once
-        await expect.poll(() => page.evaluate(() => window.trackerTest.siteSubmits())).toBe(1);
+        // Then the site gets the submit once: the tracker's copy, not the visitor's own (trusted) one
+        await expect.poll(() => page.evaluate(() => window.trackerTest.siteSubmits().length)).toBe(1);
+        await page.waitForTimeout(1000);
+        expect(await page.evaluate(() => window.trackerTest.siteSubmits())).toEqual([{ trusted: false }]);
     });
 });
