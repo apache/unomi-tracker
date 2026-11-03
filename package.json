@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build": "rollup -c && tsc",
-    "prepare": "yarn build",
+    "prepare": "rollup -c && tsc",
     "test": "node test/spec && tsc -p test/types",
     "test:servers": "node test/servers/run.js",
     "pretest": "yarn run build",

@@ -276,3 +276,6 @@ yalc.lock
 test/servers/test-results/
 playwright-report/
 test/servers/.cache/
+
+# Build output, produced by the prepare script
+/dist
