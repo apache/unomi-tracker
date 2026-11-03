@@ -44,11 +44,15 @@
     //   noBufferShim     load the tracker without the Buffer shim (optional)
     //   pageAttributes   digitalData.page.attributes as JSON, for example {} (optional)
     //   sessionId        session ID to use instead of a new one (optional)
-    //   timeout          wemInitConfig.timeoutInMilliseconds (optional, 10000 by default)
+    //   timeout          wemInitConfig.timeoutInMilliseconds (optional, 10000 by default); "none" leaves it
+    //                    out of the configuration
     //   personalization  "true": a personalized area with three variants (optional)
     //   clickButton      id of a button whose clicks are sent with sendClickEvent (optional)
-    //   clickCallback    "true": the button passes a success callback to sendClickEvent (optional)
+    //   clickLink        "true": the element is a link to /arrived instead of a button; "hash": a link to
+    //                    #arrived, which keeps the page open (optional)
+    //   clickCallback    "true": the element passes success and error callbacks to sendClickEvent (optional)
     //   form             name of a form, watched by the tracker when Unomi tracks it (optional)
+    //   formSubmit       "native": the site lets the form submit to /submitted, instead of handling it (optional)
     (function () {
         const params = new URLSearchParams(document.location.search);
         const wemInitConfig = {
@@ -59,6 +63,9 @@
             trackerSessionIdCookieName: 'tracker-test-session-id',
             trackerProfileIdCookieName: 'tracker-test-profile-id'
         };
+        if (params.get('timeout') === 'none') {
+            delete wemInitConfig.timeoutInMilliseconds;
+        }
         if (params.has('apiKey')) {
             wemInitConfig.apiKey = params.get('apiKey');
         }
@@ -125,39 +132,62 @@
             });
         }
 
-        // A button sending its clicks the way the Unomi manual shows, or with a success callback, as a
+        // A button or a link sending its clicks the way the Unomi manual shows, or with callbacks, as a
         // site does when it handles the click itself once the event is sent
+        const clickCallbacks = { success: 0, error: 0 };
+        let siteClicks = 0;
         if (params.has('clickButton')) {
-            const button = document.createElement('button');
-            button.id = params.get('clickButton');
-            button.type = 'button';
-            button.textContent = 'Tracked button';
+            const element = document.createElement(params.has('clickLink') ? 'a' : 'button');
+            element.id = params.get('clickButton');
+            if (element.tagName === 'A') {
+                element.href = params.get('clickLink') === 'hash' ? '#arrived' : '/arrived';
+            } else {
+                element.type = 'button';
+            }
+            element.textContent = 'Tracked element';
+            // The site's own click handler, registered before the tracker's
+            element.addEventListener('click', function () {
+                siteClicks++;
+            });
             if (params.get('clickCallback') === 'true') {
-                button.addEventListener('click', function (event) {
-                    tracker.sendClickEvent(event, function () {});
+                element.addEventListener('click', function (event) {
+                    tracker.sendClickEvent(event, function () {
+                        clickCallbacks.success++;
+                    }, function () {
+                        clickCallbacks.error++;
+                    });
                 });
             } else {
-                button.addEventListener('click', tracker.sendClickEvent);
+                element.addEventListener('click', tracker.sendClickEvent);
             }
-            document.body.appendChild(button);
+            document.body.appendChild(element);
         }
 
-        // A form with the usual fields. The site handles the submit itself (like a form sent with
-        // JavaScript), so the page stays open; the tracker must send the form event, then let it run.
-        // Each submit the site's handler receives: the visitor's own submit is trusted, the copy the
-        // tracker dispatches once the event is sent is not
+        // A form with the usual fields and two submit buttons. The site handles the submit itself (like
+        // a form sent with JavaScript), so the page stays open, or with formSubmit=native lets it go to
+        // /submitted. The tracker stops the visitor's own submit and sends the form event; the site's
+        // handler then only gets the tracker's copy of the submit, which is not trusted.
         const siteSubmits = [];
         if (params.has('form')) {
             const form = document.createElement('form');
             form.setAttribute('name', params.get('form'));
+            form.action = '/submitted';
+            form.method = 'get';
             form.innerHTML = '<input type="email" name="email" value="tracker-test@example.com">'
                 + '<input type="checkbox" name="topics" value="news" checked>'
                 + '<input type="checkbox" name="topics" value="offers">'
                 + '<select name="country"><option value="fr">France</option><option value="ch" selected>Switzerland</option></select>'
-                + '<button type="submit" id="submit-form">Send</button>';
+                + '<select name="languages" multiple><option value="fr" selected>French</option><option value="de" selected>German</option><option value="it">Italian</option></select>'
+                + '<input type="radio" name="contact" value="email" checked><input type="radio" name="contact" value="phone">'
+                + '<textarea name="message">Hello</textarea>'
+                + '<input type="text" name="company" value="">'
+                + '<button type="submit" id="submit-form" name="action" value="send">Send</button>'
+                + '<button type="submit" id="delete-form" name="action" value="delete">Delete</button>';
             form.addEventListener('submit', function (event) {
-                event.preventDefault();
-                siteSubmits.push({ trusted: event.isTrusted });
+                if (params.get('formSubmit') !== 'native') {
+                    event.preventDefault();
+                }
+                siteSubmits.push({ trusted: event.isTrusted, submitter: event.submitter ? event.submitter.id : null });
             });
             document.body.appendChild(form);
         }
@@ -174,6 +204,18 @@
             // The submits the site's own handler received
             siteSubmits: function () {
                 return siteSubmits;
+            },
+            // How many times the site's own click handler ran on the element
+            siteClicks: function () {
+                return siteClicks;
+            },
+            // How many times sendClickEvent called the element's success and error callbacks
+            clickCallbacks: function () {
+                return clickCallbacks;
+            },
+            // Turns tracking off, as a site does when the visitor withdraws consent
+            disableTracking: function () {
+                tracker._enableWem(false);
             },
             // The forms the tracker watches (those Unomi returned in the tracked conditions)
             watchedForms: function () {

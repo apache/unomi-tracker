@@ -63,7 +63,8 @@ export const useTracker = () => {
             const { contextServerUrl, timeoutInMilliseconds, contextServerCookieName } = wem.digitalData.wemInitConfig;
             wem.contextServerCookieName = contextServerCookieName;
             wem.contextServerUrl = contextServerUrl;
-            wem.timeoutInMilliseconds = timeoutInMilliseconds;
+            // Without a timeout, the request timer would fire at once and every request would fail
+            wem.timeoutInMilliseconds = typeof timeoutInMilliseconds === 'number' ? timeoutInMilliseconds : 1500;
             wem.formNamesToWatch = [];
             wem.eventsPrevented = [];
             wem.sessionID = wem.getCookie(wem.trackerSessionIdCookieName);
@@ -442,49 +443,90 @@ export const useTracker = () => {
          */
         sendClickEvent: function (event, successCallback = undefined, errorCallback = undefined) {
             if (event.target.id || event.target.name) {
-                console.debug('[WEM] Send click event');
                 var targetId = event.target.id ? event.target.id : event.target.name;
+
+                // The click the tracker dispatches again once the event is sent: let it through
+                if (wem.eventsPrevented.indexOf(targetId) !== -1) {
+                    return;
+                }
+                // Tracking is off, or Unomi could not be reached: nothing is sent, so leave the click alone
+                if (wem.fallback) {
+                    return;
+                }
+
+                console.debug('[WEM] Send click event');
                 var clickEvent = wem.buildEvent('click',
                     wem.buildTarget(targetId, event.target.localName),
                     wem.buildSourcePage());
 
-                var eventIndex = wem.eventsPrevented.indexOf(targetId);
-                if (eventIndex !== -1) {
-                    // The click dispatched again after the event was sent: let it through, and track the next one
-                    wem.eventsPrevented.splice(eventIndex, 1);
-                } else {
+                // A click with a modifier key opens a new tab or window, or downloads, and the page stays
+                // open: send the event without holding the click back, as dispatching it again would
+                // lose the key. With a callback, the site handles the click itself.
+                var mouseEvent = /** @type {MouseEvent} */(/** @type {unknown} */(event));
+                if (!successCallback && !errorCallback && (mouseEvent.metaKey || mouseEvent.ctrlKey || mouseEvent.shiftKey || mouseEvent.altKey)) {
+                    wem.collectEvent(clickEvent);
+                    return;
+                }
+
+                event.preventDefault();
+
+                var target = event.target;
+                // Dispatch the click again, for its default action only (following a link, submitting
+                // a form): the page's listeners already ran for the visitor's click, so the copy is
+                // stopped before it reaches them. Stopping it does not cancel the default action.
+                // target.click() runs at once, so the element is only marked while it does, in case a
+                // listener still sees the copy.
+                /**
+                 * @param {Event} copy the click dispatched again
+                 * @returns {undefined}
+                 */
+                var stopCopy = function (copy) {
+                    if (copy.target === target) {
+                        copy.stopPropagation();
+                    }
+                };
+                var dispatchAgain = function () {
+                    var canStop = typeof window !== 'undefined' && typeof window.addEventListener === 'function';
+                    if (canStop) {
+                        window.addEventListener('click', stopCopy, true);
+                    }
                     wem.eventsPrevented.push(targetId);
-
-                    event.preventDefault();
-
-                    var target = event.target;
-
-                    // A callback replaces dispatching the click again, so forget the element here instead
-                    var release = function () {
+                    try {
+                        target.click();
+                    } finally {
+                        if (canStop) {
+                            window.removeEventListener('click', stopCopy, true);
+                        }
                         var index = wem.eventsPrevented.indexOf(targetId);
                         if (index !== -1) {
                             wem.eventsPrevented.splice(index, 1);
                         }
+                    }
+                };
+                /**
+                 * Once the event is sent, or could not be: the site's callback, or the click again
+                 * @param {function(): void} log logs the outcome
+                 * @param {Function} [callback] the site's callback for this outcome
+                 * @returns {function(XMLHttpRequest): void} the request callback
+                 */
+                var whenDone = function (log, callback) {
+                    return function (xhr) {
+                        log();
+                        if (callback) {
+                            callback(xhr);
+                        } else {
+                            dispatchAgain();
+                        }
                     };
+                };
 
-                    wem.collectEvent(clickEvent, function (xhr) {
+                wem.collectEvent(clickEvent,
+                    whenDone(function () {
                         console.debug('[WEM] Click event successfully collected.');
-                        if (successCallback) {
-                            release();
-                            successCallback(xhr);
-                        } else {
-                            target.click();
-                        }
-                    }, function (xhr) {
+                    }, successCallback),
+                    whenDone(function () {
                         console.error('[WEM] Could not send click event.');
-                        if (errorCallback) {
-                            release();
-                            errorCallback(xhr);
-                        } else {
-                            target.click();
-                        }
-                    });
-                }
+                    }, errorCallback));
             }
         },
 
@@ -1335,33 +1377,57 @@ export const useTracker = () => {
             var form = /** @type {HTMLFormElement} */(event.target);
             var formName = form.getAttribute('name') ? form.getAttribute('name') : form.getAttribute('id');
             if (formName && wem.formNamesToWatch.indexOf(formName) > -1) {
+                // Tracking is off, or Unomi could not be reached: nothing is sent, so leave the submit alone
+                if (wem.fallback) {
+                    return;
+                }
                 console.debug('[WEM] catching form ' + formName);
 
-                var eventCopy = document.createEvent('Event');
-                // Define that the event name is 'build'.
-                eventCopy.initEvent('submit', event.bubbles, event.cancelable);
+                // The button that submitted the form, if any: the site's handlers can read it on the copy
+                // of the event, and the submitted data must include its name and value
+                var submitter = /** @type {HTMLButtonElement | HTMLInputElement | null} */(event.submitter || null);
+                /** @type {Event} */
+                var eventCopy;
+                if (typeof SubmitEvent === 'function') {
+                    eventCopy = new SubmitEvent('submit', { bubbles: event.bubbles, cancelable: event.cancelable, submitter: submitter });
+                } else {
+                    eventCopy = document.createEvent('Event');
+                    eventCopy.initEvent('submit', event.bubbles, event.cancelable);
+                }
 
                 event.stopImmediatePropagation();
                 event.preventDefault();
 
-                wem.collectEvent(wem.buildFormEvent(formName, form),
-                    function () {
-                        form.removeEventListener('submit', wem._formSubmitEventListener, true);
-                        form.dispatchEvent(eventCopy);
-                        if (!eventCopy.defaultPrevented && !eventCopy.cancelBubble) {
-                            form.submit();
+                // Once the event is sent, or could not be: let the site's handlers see the submit, then
+                // submit the form unless one of them prevented it
+                var continueSubmit = function () {
+                    form.removeEventListener('submit', wem._formSubmitEventListener, true);
+                    form.dispatchEvent(eventCopy);
+                    if (!eventCopy.defaultPrevented && !eventCopy.cancelBubble) {
+                        // form.submit() leaves out the submitting button: add its name and value, as a
+                        // native submit does. The data is read when submit() is called.
+                        var submitterField = null;
+                        if (submitter && submitter.name) {
+                            submitterField = document.createElement('input');
+                            submitterField.type = 'hidden';
+                            submitterField.name = submitter.name;
+                            submitterField.value = submitter.value;
+                            form.appendChild(submitterField);
                         }
-                        form.addEventListener('submit', wem._formSubmitEventListener, true);
-                    },
+                        form.submit();
+                        if (submitterField) {
+                            form.removeChild(submitterField);
+                        }
+                    }
+                    form.addEventListener('submit', wem._formSubmitEventListener, true);
+                };
+
+                wem.collectEvent(wem.buildFormEvent(formName, form),
+                    continueSubmit,
                     function (xhr) {
                         console.error('[WEM] Error while collecting form event: ' + xhr.status + ' ' + xhr.statusText);
                         xhr.abort();
-                        form.removeEventListener('submit', wem._formSubmitEventListener, true);
-                        form.dispatchEvent(eventCopy);
-                        if (!eventCopy.defaultPrevented && !eventCopy.cancelBubble) {
-                            form.submit();
-                        }
-                        form.addEventListener('submit', wem._formSubmitEventListener, true);
+                        continueSubmit();
                     }
                 );
             }

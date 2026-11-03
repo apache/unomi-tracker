@@ -66,7 +66,7 @@ assert.strictEqual(requestFor({ apiKey: '' }).headers['X-Unomi-Api-Key'], undefi
 assert.strictEqual(requestFor({ apiKey: 'public-key' }).headers['X-Unomi-Api-Key'], 'public-key', 'API key header is sent when apiKey is set');
 assert.strictEqual(requestFor({ apiKey: 'public-key' }).headers['Content-Type'], 'text/plain;charset=UTF-8', 'other headers are unchanged');
 
-// Crawler detection: the same result with and without Node's Buffer
+// UNOMI-1023: crawler detection, the same result with and without Node's Buffer
 const crawlerTracker = unomi.useTracker();
 const edgeStrings = ['', 'abc', 'é漢字😀', '\uD800', 'a\uDC00b', '😀\uD800', 'x'.repeat(4096), 'é'.repeat(2048), 'é'.repeat(2049)];
 for (let i = 0; i < 500; i++) {
@@ -100,7 +100,7 @@ try {
     globalThis.Buffer = nodeBuffer;
 }
 
-// Page properties sent with events: an empty "attributes" is left out, digitalData.page is unchanged
+// UNOMI-1024: page properties sent with events: an empty "attributes" is left out, digitalData.page is unchanged
 function pagePropertiesFor(attributes) {
     const page = { pageInfo: { pageID: 'home', pageName: 'Home' }, consentTypes: [] };
     if (attributes !== undefined) {
@@ -125,7 +125,111 @@ assert.deepStrictEqual(Object.keys(pageResult.target), ['pageInfo', 'consentType
 assert.strictEqual(pageResult.source.pageInfo, pageResult.page.pageInfo, 'pageInfo is the same object');
 assert.deepStrictEqual(pageResult.page.attributes, {}, 'digitalData.page keeps its attributes');
 
-// Ids of tracked videos and links, mapped through digitalData.sourceLocalIdentifierMap
+// UNOMI-1043: without timeoutInMilliseconds, the tracker uses its default instead of a timer that fires at once
+const noTimeout = unomi.useTracker();
+noTimeout.initTracker({ wemInitConfig: { contextServerUrl: '' } });
+assert.strictEqual(noTimeout.timeoutInMilliseconds, 1500, 'the default timeout');
+const noLimit = unomi.useTracker();
+noLimit.initTracker({ wemInitConfig: { contextServerUrl: '', timeoutInMilliseconds: -1 } });
+assert.strictEqual(noLimit.timeoutInMilliseconds, -1, 'a configured timeout is kept, -1 included');
+
+// UNOMI-1037, UNOMI-1040, UNOMI-1041: sendClickEvent, what happens to the visitor's click. collectEvent is replaced, so each test sends
+// or fails the event itself; the element's click() runs the tracker's listener again, as browsers do.
+function clickTracker(fallback = false) {
+    const t = unomi.useTracker();
+    t.initTracker({ scope: 'test', site: { siteInfo: { siteID: 'test' } }, page: { pageInfo: { pageID: 'home', pageName: 'Home' }, consentTypes: [] }, events: [], wemInitConfig: { contextServerUrl: '', timeoutInMilliseconds: -1 } });
+    t.fallback = fallback;
+    const sent = [];
+    t.collectEvent = (event, success, error) => sent.push({ event, success, error });
+    const element = {
+        id: 'link',
+        localName: 'a',
+        dispatchedAgain: [],
+        click() {
+            const event = clickOn(element);
+            t.sendClickEvent(event);
+            element.dispatchedAgain.push(event);
+        }
+    };
+    return { t, sent, element };
+}
+
+function clickOn(target, keys = {}) {
+    const event = {
+        target,
+        defaultPrevented: false,
+        preventDefault() {
+            event.defaultPrevented = true;
+        }
+    };
+    return Object.assign(event, keys);
+}
+
+let clicks = clickTracker();
+let click = clickOn(clicks.element);
+clicks.t.sendClickEvent(click);
+assert.strictEqual(click.defaultPrevented, true, 'the click is held back while its event is sent');
+assert.strictEqual(clicks.sent.length, 1, 'one event is sent');
+assert.strictEqual(clicks.sent[0].event.target.itemId, 'link', 'the event is on the element');
+clicks.sent[0].success({});
+assert.strictEqual(clicks.element.dispatchedAgain.length, 1, 'once the event is sent, the click is dispatched again');
+assert.strictEqual(clicks.element.dispatchedAgain[0].defaultPrevented, false, 'the click dispatched again goes through');
+assert.strictEqual(clicks.sent.length, 1, 'the click dispatched again is not sent');
+assert.deepStrictEqual(clicks.t.eventsPrevented, [], 'nothing is left marked');
+clicks.t.sendClickEvent(clickOn(clicks.element));
+assert.strictEqual(clicks.sent.length, 2, 'the next click is sent too');
+
+clicks = clickTracker();
+clicks.t.sendClickEvent(clickOn(clicks.element));
+clicks.sent[0].error({});
+assert.strictEqual(clicks.element.dispatchedAgain.length, 1, 'when the event cannot be sent, the click is dispatched again too');
+assert.strictEqual(clicks.element.dispatchedAgain[0].defaultPrevented, false, 'and goes through');
+
+clicks = clickTracker();
+clicks.t.sendClickEvent(clickOn(clicks.element));
+clicks.t.sendClickEvent(clickOn(clicks.element));
+assert.strictEqual(clicks.sent.length, 2, 'a second click before the first event is sent is sent too');
+clicks.sent[0].success({});
+clicks.sent[1].success({});
+assert.deepStrictEqual(clicks.element.dispatchedAgain.map(event => event.defaultPrevented), [false, false], 'each click is dispatched again once');
+
+const callbacks = [];
+clicks = clickTracker();
+for (const outcome of ['success', 'error', 'success']) {
+    click = clickOn(clicks.element);
+    clicks.t.sendClickEvent(click, () => callbacks.push('success'), () => callbacks.push('error'));
+    assert.strictEqual(click.defaultPrevented, true, 'with callbacks, the click is held back');
+    clicks.sent[clicks.sent.length - 1][outcome]({});
+}
+assert.strictEqual(clicks.sent.length, 3, 'with callbacks, every click is sent');
+assert.deepStrictEqual(callbacks, ['success', 'error', 'success'], 'the callback of each outcome is called');
+assert.strictEqual(clicks.element.dispatchedAgain.length, 0, 'with callbacks, the site handles the click itself');
+
+clicks = clickTracker(true);
+click = clickOn(clicks.element);
+clicks.t.sendClickEvent(click);
+assert.strictEqual(click.defaultPrevented, false, 'in fallback, the click goes through');
+assert.strictEqual(clicks.sent.length, 0, 'in fallback, nothing is sent');
+
+for (const key of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {
+    clicks = clickTracker();
+    click = clickOn(clicks.element, { [key]: true });
+    clicks.t.sendClickEvent(click);
+    assert.strictEqual(click.defaultPrevented, false, 'a click with ' + key + ' goes through (new tab or window)');
+    assert.strictEqual(clicks.sent.length, 1, 'a click with ' + key + ' is sent');
+    assert.strictEqual(clicks.sent[0].success, undefined, 'and is not dispatched again');
+    click = clickOn(clicks.element, { [key]: true });
+    clicks.t.sendClickEvent(click, () => {});
+    assert.strictEqual(click.defaultPrevented, true, 'with a callback, a click with ' + key + ' is held back for the site');
+}
+
+clicks = clickTracker();
+click = clickOn({ localName: 'a' });
+clicks.t.sendClickEvent(click);
+assert.strictEqual(click.defaultPrevented, false, 'an element without id or name is not tracked');
+assert.strictEqual(clicks.sent.length, 0, 'and nothing is sent');
+
+// UNOMI-1038: ids of tracked videos and links, mapped through digitalData.sourceLocalIdentifierMap
 function resolveId(id, sourceLocalIdentifierMap) {
     const t = unomi.useTracker();
     t.initTracker({ sourceLocalIdentifierMap: sourceLocalIdentifierMap, wemInitConfig: { contextServerUrl: '', timeoutInMilliseconds: -1 } });

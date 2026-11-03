@@ -272,8 +272,9 @@ async function setUp(t) {
 }
 
 // Polls until at least minCount events on the given target are indexed, and returns them, newest
-// first. With "matching", only the events it accepts count and are returned: a server kept from an
-// earlier run can hold events on the same target.
+// first. Only the 10 newest events on the target are read; with "matching", only those it accepts
+// count and are returned (a server kept from an earlier run can hold events on the same target).
+// After timeoutMs it returns what it found, which can be fewer than minCount.
 async function findEvents(credentials, targetId, { timeoutMs = 15000, minCount = 1, matching = () => true } = {}) {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
@@ -296,9 +297,4 @@ async function findEvents(credentials, targetId, { timeoutMs = 15000, minCount =
     }
 }
 
-// Polls until click events on the given target are indexed, and returns them.
-async function findClickEvents(credentials, targetId, timeoutMs = 15000) {
-    return findEvents(credentials, targetId, { timeoutMs });
-}
-
-module.exports = { UNOMI_URL, TARGETS, FORM_NAME, target, tenantOf, setUp, findEvents, findClickEvents };
+module.exports = { UNOMI_URL, TARGETS, FORM_NAME, target, tenantOf, setUp, findEvents };

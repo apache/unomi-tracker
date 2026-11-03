@@ -88,16 +88,27 @@ For each server:
 - Personalization: Unomi chooses the variant whose condition matches, and the tracker displays it.
   When Unomi cannot be reached, or does not answer within `timeoutInMilliseconds`, the tracker
   falls back and displays the fallback variant.
-- Every click on an element sent with `sendClickEvent` is stored, not only the first (UNOMI-1037),
-  both as an event listener and when the site passes a success callback.
+- A configuration without `timeoutInMilliseconds` loads the context and sends events (UNOMI-1043).
+- Clicks sent with `sendClickEvent` (UNOMI-1037), as an event listener and with callbacks: every
+  click is stored, also a second click made before the first event is sent, and none twice. When
+  the event cannot be sent, the error callback is called, or a link is still followed. The site's
+  own click handler runs once per click, on a button and on a link that is still followed
+  (UNOMI-1046).
+- A link still works at once when Unomi could not be reached, or when tracking is turned off
+  (`_enableWem(false)`, UNOMI-1040). Ctrl or Cmd+click opens it in a new tab, and the click is
+  still stored (UNOMI-1041).
 - A form: the setup adds a rule on its submit, so Unomi returns it in the tracked conditions and
-  the tracker watches it. On submit, the form event is stored with the field values (text, checked
-  checkboxes, selected option). The site's own submit handler runs once, only after the event is
-  sent, and gets the tracker's copy of the submit, not the visitor's own.
+  the tracker watches it. On submit, the form event is stored with the field values (text, text
+  area, checked checkboxes and radio button, selected options; empty fields are left out). The
+  site's own submit handler runs once, only after the event is sent, and gets the tracker's copy
+  of the submit, which says which button was used. A form the site lets submit is sent with that
+  button's name and value (UNOMI-1042), also when the event cannot be sent, and at once when
+  tracking is turned off (UNOMI-1040).
 
 Not tested yet: optimization tests, search and video events, `invalidateSessionAndProfile`,
-digitalData overrides, other browsers than Chromium, and a site and Unomi on different domains
-(the test origins are all on localhost, which browsers treat as one site).
+digitalData overrides, personalization with a control group or a result callback, a Unomi that
+stops answering after the page loaded, other browsers than Chromium, and a site and Unomi on
+different domains (the test origins are all on localhost, which browsers treat as one site).
 
 Files
 -----
