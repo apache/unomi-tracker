@@ -450,7 +450,8 @@ export const useTracker = () => {
 
                 var eventIndex = wem.eventsPrevented.indexOf(targetId);
                 if (eventIndex !== -1) {
-                    wem.eventsPrevented.splice(eventIndex, 0);
+                    // The click dispatched again after the event was sent: let it through, and track the next one
+                    wem.eventsPrevented.splice(eventIndex, 1);
                 } else {
                     wem.eventsPrevented.push(targetId);
 
@@ -1427,12 +1428,12 @@ export const useTracker = () => {
          * @private
          */
         _resolveId: function (id) {
-            if (wem.digitalData.sourceLocalIdentifierMap) {
-                var source = Object.keys(wem.digitalData.sourceLocalIdentifierMap).filter(function (source) {
-                    return id.indexOf(source) > 0;
+            var map = /** @type {Record<string, string> | undefined} */(wem.digitalData.sourceLocalIdentifierMap);
+            if (map) {
+                var sources = Object.keys(map).filter(function (source) {
+                    return id.indexOf(source) !== -1;
                 });
-                // @ts-expect-error This code is broken, source is an array
-                return source ? id.replace(source, wem.digitalData.sourceLocalIdentifierMap[source]) : id;
+                return sources.length > 0 ? id.replace(sources[0], map[sources[0]]) : id;
             }
             return id;
         },

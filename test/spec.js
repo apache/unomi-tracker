@@ -125,4 +125,17 @@ assert.deepStrictEqual(Object.keys(pageResult.target), ['pageInfo', 'consentType
 assert.strictEqual(pageResult.source.pageInfo, pageResult.page.pageInfo, 'pageInfo is the same object');
 assert.deepStrictEqual(pageResult.page.attributes, {}, 'digitalData.page keeps its attributes');
 
+// Ids of tracked videos and links, mapped through digitalData.sourceLocalIdentifierMap
+function resolveId(id, sourceLocalIdentifierMap) {
+    const t = unomi.useTracker();
+    t.initTracker({ sourceLocalIdentifierMap: sourceLocalIdentifierMap, wemInitConfig: { contextServerUrl: '', timeoutInMilliseconds: -1 } });
+    return t._resolveId(id);
+}
+
+const idMap = { 'live-': 'default-' };
+assert.strictEqual(resolveId('live-video', idMap), 'default-video', 'a mapped part at the start of the id');
+assert.strictEqual(resolveId('page-live-video', idMap), 'page-default-video', 'a mapped part inside the id');
+assert.strictEqual(resolveId('other-video', idMap), 'other-video', 'an id without a mapped part is unchanged');
+assert.strictEqual(resolveId('live-video', undefined), 'live-video', 'no map, no change');
+
 console.log('Tests passed');
