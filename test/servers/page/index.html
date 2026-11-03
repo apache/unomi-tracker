@@ -53,8 +53,28 @@
     //   clickCallback    "true": the element passes success and error callbacks to sendClickEvent (optional)
     //   form             name of a form, watched by the tracker when Unomi tracks it (optional)
     //   formSubmit       "native": the site lets the form submit to /submitted, instead of handling it (optional)
+    //   router           "true": a single-page application router, delegated on the document as React Router
+    //                    or Vue Router do: it handles the link clicks nobody prevented yet (optional)
+    //   oldBrowser       "true": no HTMLFormElement.requestSubmit nor SubmitEvent, as in older browsers (optional)
     (function () {
         const params = new URLSearchParams(document.location.search);
+        if (params.get('oldBrowser') === 'true') {
+            delete HTMLFormElement.prototype.requestSubmit;
+            delete window.SubmitEvent;
+        }
+        // Changes with each page load: the same value after a click shows the page was not reloaded
+        const pageLoadId = Math.random();
+        let routed = 0;
+        if (params.get('router') === 'true') {
+            document.addEventListener('click', function (event) {
+                const link = event.target.closest && event.target.closest('a');
+                if (link && !event.defaultPrevented) {
+                    event.preventDefault();
+                    history.pushState({}, '', link.getAttribute('href'));
+                    routed++;
+                }
+            });
+        }
         const wemInitConfig = {
             contextServerUrl: params.get('unomi'),
             timeoutInMilliseconds: params.has('timeout') ? Number(params.get('timeout')) : 10000,
@@ -166,7 +186,7 @@
         // A form with the usual fields and two submit buttons. The site handles the submit itself (like
         // a form sent with JavaScript), so the page stays open, or with formSubmit=native lets it go to
         // /submitted. The tracker stops the visitor's own submit and sends the form event; the site's
-        // handler then only gets the tracker's copy of the submit, which is not trusted.
+        // handler then only gets the submit the tracker makes once the event is sent.
         const siteSubmits = [];
         if (params.has('form')) {
             const form = document.createElement('form');
@@ -182,12 +202,22 @@
                 + '<textarea name="message">Hello</textarea>'
                 + '<input type="text" name="company" value="">'
                 + '<button type="submit" id="submit-form" name="action" value="send">Send</button>'
-                + '<button type="submit" id="delete-form" name="action" value="delete">Delete</button>';
+                + '<button type="submit" id="delete-form" name="action" value="delete">Delete</button>'
+                // A button named "submit" hides the form's own submit()
+                + '<button type="submit" id="submit-named" name="submit" value="go">Go</button>'
+                // The site takes this button out of the form right after the click
+                + '<button type="submit" id="submit-removed" name="action" value="removed">Done</button>'
+                + '<input type="image" id="submit-image" name="pic" alt="Send" width="20" height="20" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">';
             form.addEventListener('submit', function (event) {
                 if (params.get('formSubmit') !== 'native') {
                     event.preventDefault();
                 }
-                siteSubmits.push({ trusted: event.isTrusted, submitter: event.submitter ? event.submitter.id : null });
+                siteSubmits.push({ submitter: event.submitter ? event.submitter.id : null });
+            });
+            form.querySelector('#submit-removed').addEventListener('click', function (event) {
+                setTimeout(function () {
+                    event.target.remove();
+                }, 0);
             });
             document.body.appendChild(form);
         }
@@ -204,6 +234,13 @@
             // The submits the site's own handler received
             siteSubmits: function () {
                 return siteSubmits;
+            },
+            // Whether the page is still the one first loaded, and how many link clicks the router handled
+            pageLoadId: function () {
+                return pageLoadId;
+            },
+            routed: function () {
+                return routed;
             },
             // How many times the site's own click handler ran on the element
             siteClicks: function () {

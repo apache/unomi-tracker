@@ -126,31 +126,57 @@ assert.strictEqual(pageResult.source.pageInfo, pageResult.page.pageInfo, 'pageIn
 assert.deepStrictEqual(pageResult.page.attributes, {}, 'digitalData.page keeps its attributes');
 
 // UNOMI-1043: without timeoutInMilliseconds, the tracker uses its default instead of a timer that fires at once
-const noTimeout = unomi.useTracker();
-noTimeout.initTracker({ wemInitConfig: { contextServerUrl: '' } });
-assert.strictEqual(noTimeout.timeoutInMilliseconds, 1500, 'the default timeout');
-const noLimit = unomi.useTracker();
-noLimit.initTracker({ wemInitConfig: { contextServerUrl: '', timeoutInMilliseconds: -1 } });
-assert.strictEqual(noLimit.timeoutInMilliseconds, -1, 'a configured timeout is kept, -1 included');
+function timeoutFor(timeoutInMilliseconds) {
+    const t = unomi.useTracker();
+    const wemInitConfig = { contextServerUrl: '' };
+    if (timeoutInMilliseconds !== 'missing') {
+        wemInitConfig.timeoutInMilliseconds = timeoutInMilliseconds;
+    }
+    t.initTracker({ wemInitConfig });
+    return t.timeoutInMilliseconds;
+}
+assert.strictEqual(timeoutFor('missing'), 1500, 'no timeout: the default');
+for (const value of [undefined, null, '', 'soon', NaN, Infinity]) {
+    assert.strictEqual(timeoutFor(value), 1500, 'the default for ' + String(value));
+}
+assert.strictEqual(timeoutFor(3000), 3000, 'a configured timeout is kept');
+assert.strictEqual(timeoutFor(-1), -1, '-1 (no timeout) is kept');
+assert.strictEqual(timeoutFor('3000'), 3000, 'a number given as a string, as from an HTML attribute, is used');
 
-// UNOMI-1037, UNOMI-1040, UNOMI-1041: sendClickEvent, what happens to the visitor's click. collectEvent is replaced, so each test sends
-// or fails the event itself; the element's click() runs the tracker's listener again, as browsers do.
-function clickTracker(fallback = false) {
+// UNOMI-1037, UNOMI-1040, UNOMI-1041, UNOMI-1046: sendClickEvent, what happens to the visitor's
+// click. collectEvent is replaced, so each test sends or fails the event itself; the element's
+// click() runs the tracker's listener again, as browsers do for a click dispatched again.
+const ELEMENTS = {
+    // Clicks that leave the page
+    link: { localName: 'a', hasAttribute: name => name === 'href' },
+    area: { localName: 'area', hasAttribute: name => name === 'href' },
+    submitButton: { localName: 'button', type: 'submit', form: {} },
+    submitInput: { localName: 'input', type: 'submit', form: {} },
+    imageInput: { localName: 'input', type: 'image', form: {} },
+    // Clicks that do not
+    linkWithoutAddress: { localName: 'a', hasAttribute: () => false },
+    button: { localName: 'button', type: 'button', form: {} },
+    submitButtonWithoutForm: { localName: 'button', type: 'submit', form: null },
+    checkbox: { localName: 'input', type: 'checkbox', form: {} },
+    div: { localName: 'div' }
+};
+const LEAVING = ['link', 'area', 'submitButton', 'submitInput', 'imageInput'];
+
+function clickTracker(kind = 'link', fallback = false) {
     const t = unomi.useTracker();
     t.initTracker({ scope: 'test', site: { siteInfo: { siteID: 'test' } }, page: { pageInfo: { pageID: 'home', pageName: 'Home' }, consentTypes: [] }, events: [], wemInitConfig: { contextServerUrl: '', timeoutInMilliseconds: -1 } });
     t.fallback = fallback;
     const sent = [];
     t.collectEvent = (event, success, error) => sent.push({ event, success, error });
-    const element = {
-        id: 'link',
-        localName: 'a',
+    const element = Object.assign({
+        id: 'element',
         dispatchedAgain: [],
         click() {
             const event = clickOn(element);
             t.sendClickEvent(event);
             element.dispatchedAgain.push(event);
         }
-    };
+    }, ELEMENTS[kind]);
     return { t, sent, element };
 }
 
@@ -165,25 +191,28 @@ function clickOn(target, keys = {}) {
     return Object.assign(event, keys);
 }
 
-let clicks = clickTracker();
-let click = clickOn(clicks.element);
-clicks.t.sendClickEvent(click);
-assert.strictEqual(click.defaultPrevented, true, 'the click is held back while its event is sent');
-assert.strictEqual(clicks.sent.length, 1, 'one event is sent');
-assert.strictEqual(clicks.sent[0].event.target.itemId, 'link', 'the event is on the element');
-clicks.sent[0].success({});
-assert.strictEqual(clicks.element.dispatchedAgain.length, 1, 'once the event is sent, the click is dispatched again');
-assert.strictEqual(clicks.element.dispatchedAgain[0].defaultPrevented, false, 'the click dispatched again goes through');
-assert.strictEqual(clicks.sent.length, 1, 'the click dispatched again is not sent');
-assert.deepStrictEqual(clicks.t.eventsPrevented, [], 'nothing is left marked');
-clicks.t.sendClickEvent(clickOn(clicks.element));
-assert.strictEqual(clicks.sent.length, 2, 'the next click is sent too');
-
-clicks = clickTracker();
-clicks.t.sendClickEvent(clickOn(clicks.element));
-clicks.sent[0].error({});
-assert.strictEqual(clicks.element.dispatchedAgain.length, 1, 'when the event cannot be sent, the click is dispatched again too');
-assert.strictEqual(clicks.element.dispatchedAgain[0].defaultPrevented, false, 'and goes through');
+let clicks;
+let click;
+for (const kind of Object.keys(ELEMENTS)) {
+    const leaves = LEAVING.includes(kind);
+    for (const outcome of ['success', 'error']) {
+        clicks = clickTracker(kind);
+        click = clickOn(clicks.element);
+        clicks.t.sendClickEvent(click);
+        assert.strictEqual(click.defaultPrevented, leaves, kind + ': the click is ' + (leaves ? '' : 'not ') + 'held back while its event is sent');
+        assert.strictEqual(clicks.sent.length, 1, kind + ': one event is sent');
+        assert.strictEqual(clicks.sent[0].event.target.itemId, 'element', kind + ': the event is on the element');
+        clicks.sent[0][outcome]({});
+        assert.strictEqual(clicks.element.dispatchedAgain.length, leaves ? 1 : 0, kind + ', ' + outcome + ': the click is ' + (leaves ? '' : 'not ') + 'dispatched again');
+        if (leaves) {
+            assert.strictEqual(clicks.element.dispatchedAgain[0].defaultPrevented, false, kind + ': the click dispatched again goes through');
+        }
+        assert.strictEqual(clicks.sent.length, 1, kind + ': the click dispatched again is not sent');
+        assert.deepStrictEqual(clicks.t.eventsPrevented, [], kind + ': nothing is left marked');
+        clicks.t.sendClickEvent(clickOn(clicks.element));
+        assert.strictEqual(clicks.sent.length, 2, kind + ': the next click is sent too');
+    }
+}
 
 clicks = clickTracker();
 clicks.t.sendClickEvent(clickOn(clicks.element));
@@ -193,23 +222,27 @@ clicks.sent[0].success({});
 clicks.sent[1].success({});
 assert.deepStrictEqual(clicks.element.dispatchedAgain.map(event => event.defaultPrevented), [false, false], 'each click is dispatched again once');
 
-const callbacks = [];
-clicks = clickTracker();
-for (const outcome of ['success', 'error', 'success']) {
-    click = clickOn(clicks.element);
-    clicks.t.sendClickEvent(click, () => callbacks.push('success'), () => callbacks.push('error'));
-    assert.strictEqual(click.defaultPrevented, true, 'with callbacks, the click is held back');
-    clicks.sent[clicks.sent.length - 1][outcome]({});
+for (const kind of ['link', 'button']) {
+    const callbacks = [];
+    clicks = clickTracker(kind);
+    for (const outcome of ['success', 'error', 'success']) {
+        click = clickOn(clicks.element);
+        clicks.t.sendClickEvent(click, () => callbacks.push('success'), () => callbacks.push('error'));
+        assert.strictEqual(click.defaultPrevented, kind === 'link', kind + ' with callbacks: held back only if the click leaves the page');
+        clicks.sent[clicks.sent.length - 1][outcome]({});
+    }
+    assert.strictEqual(clicks.sent.length, 3, kind + ' with callbacks: every click is sent');
+    assert.deepStrictEqual(callbacks, ['success', 'error', 'success'], kind + ' with callbacks: the callback of each outcome is called');
+    assert.strictEqual(clicks.element.dispatchedAgain.length, 0, kind + ' with callbacks: the site handles the click itself');
 }
-assert.strictEqual(clicks.sent.length, 3, 'with callbacks, every click is sent');
-assert.deepStrictEqual(callbacks, ['success', 'error', 'success'], 'the callback of each outcome is called');
-assert.strictEqual(clicks.element.dispatchedAgain.length, 0, 'with callbacks, the site handles the click itself');
 
-clicks = clickTracker(true);
-click = clickOn(clicks.element);
-clicks.t.sendClickEvent(click);
-assert.strictEqual(click.defaultPrevented, false, 'in fallback, the click goes through');
-assert.strictEqual(clicks.sent.length, 0, 'in fallback, nothing is sent');
+for (const kind of ['link', 'button']) {
+    clicks = clickTracker(kind, true);
+    click = clickOn(clicks.element);
+    clicks.t.sendClickEvent(click);
+    assert.strictEqual(click.defaultPrevented, false, kind + ' in fallback: the click goes through');
+    assert.strictEqual(clicks.sent.length, 0, kind + ' in fallback: nothing is sent');
+}
 
 for (const key of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {
     clicks = clickTracker();
@@ -217,7 +250,8 @@ for (const key of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {
     clicks.t.sendClickEvent(click);
     assert.strictEqual(click.defaultPrevented, false, 'a click with ' + key + ' goes through (new tab or window)');
     assert.strictEqual(clicks.sent.length, 1, 'a click with ' + key + ' is sent');
-    assert.strictEqual(clicks.sent[0].success, undefined, 'and is not dispatched again');
+    clicks.sent[0].success({});
+    assert.strictEqual(clicks.element.dispatchedAgain.length, 0, 'and is not dispatched again');
     click = clickOn(clicks.element, { [key]: true });
     clicks.t.sendClickEvent(click, () => {});
     assert.strictEqual(click.defaultPrevented, true, 'with a callback, a click with ' + key + ' is held back for the site');

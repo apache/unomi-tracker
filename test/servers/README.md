@@ -89,20 +89,21 @@ For each server:
   When Unomi cannot be reached, or does not answer within `timeoutInMilliseconds`, the tracker
   falls back and displays the fallback variant.
 - A configuration without `timeoutInMilliseconds` loads the context and sends events (UNOMI-1043).
-- Clicks sent with `sendClickEvent` (UNOMI-1037), as an event listener and with callbacks: every
-  click is stored, also a second click made before the first event is sent, and none twice. When
-  the event cannot be sent, the error callback is called, or a link is still followed. The site's
-  own click handler runs once per click, on a button and on a link that is still followed
-  (UNOMI-1046).
+- Clicks sent with `sendClickEvent` (UNOMI-1037), on a button and on a link, as an event listener
+  and with callbacks: every click is stored, also a second click made before the first event is
+  sent, and none twice. When the event cannot be sent, the error callback is called, or a link is
+  still followed. The site's own click handler runs once per click on a button, and a
+  single-page application router handles a tracked link without reloading the page (UNOMI-1046).
 - A link still works at once when Unomi could not be reached, or when tracking is turned off
   (`_enableWem(false)`, UNOMI-1040). Ctrl or Cmd+click opens it in a new tab, and the click is
   still stored (UNOMI-1041).
 - A form: the setup adds a rule on its submit, so Unomi returns it in the tracked conditions and
   the tracker watches it. On submit, the form event is stored with the field values (text, text
   area, checked checkboxes and radio button, selected options; empty fields are left out). The
-  site's own submit handler runs once, only after the event is sent, and gets the tracker's copy
-  of the submit, which says which button was used. A form the site lets submit is sent with that
-  button's name and value (UNOMI-1042), also when the event cannot be sent, and at once when
+  site's own submit handler runs once, once the event is sent or could not be, and learns which
+  button was used. A form the site lets submit sends the same data as a native submit, with the
+  button that was used (also one named `submit`, and an image button), in browsers with and
+  without `requestSubmit` (UNOMI-1042), also when the event cannot be sent, and at once when
   tracking is turned off (UNOMI-1040).
 
 Not tested yet: optimization tests, search and video events, `invalidateSessionAndProfile`,
