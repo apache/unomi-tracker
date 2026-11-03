@@ -106,6 +106,18 @@ If the site does not need to recognise visitors, set `sendCredentials: false`. R
 
 See the [web tracker reference](https://unomi.apache.org/manual/latest/#_unomi_web_tracker_reference) in the Unomi manual for details.
 
+Deploying the website and Unomi
+-------------------------------
+Unomi recognises a returning visitor by its profile cookie (`context-profile-id`), which it sets on its own host. Whether browsers keep that cookie depends on where Unomi is, compared with the website:
+
+| Setup | Example | Profile cookie |
+|---|---|---|
+| Same host, Unomi behind a reverse proxy | `contextServerUrl: 'https://www.example.com/unomi'` | First-party: kept by all browsers. Recommended |
+| Another host on the same domain | `www.example.com` and `cdp.example.com` | Same site: kept by all browsers. Unomi 4 must list the website origin, see above |
+| Another domain | `www.example.com` and `unomi.example.net` | Third-party: blocked by Safari, and by Chrome in private windows or when the user blocks third-party cookies. Firefox keeps a separate one for each website |
+
+When the browser blocks the profile cookie, Unomi sees the visitor as with `sendCredentials: false` (see above): a new profile on each request with Unomi 4, a profile for the session only with Unomi 2.x and 3.x. The tracker cannot keep the profile itself yet: it copies the profile ID into its own cookie (`trackerProfileIdCookieName`), on the website's host, but does not send it to Unomi (UNOMI-733).
+
 Configuration options
 ---------------------
 Options in `wemInitConfig`:
