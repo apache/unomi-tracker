@@ -1,6 +1,6 @@
 name: Server Tests
 
-# The tracker in a real browser against each supported Unomi version (test/servers).
+# The tracker in a real browser against Unomi 3 and Unomi 4 (test/servers).
 # Each job is a required check for merging into main (.asf.yaml): keep the job names in sync.
 on:
   pull_request:
@@ -24,7 +24,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [compare-1.5.0, unomi2-legacy, unomi2, unomi3, unomi4, unomi4-compat]
+        # The other names (compare-1.5.0, unomi2-legacy, unomi2, unomi4-compat) are run by hand before a release
+        target: [unomi3, unomi4]
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies

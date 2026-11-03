@@ -22,7 +22,7 @@
 //   yarn test:servers compare-1.5.0      only the comparison with 1.5.0 (no Docker needed)
 //   yarn test:servers --keep unomi4      leave the server running afterwards
 //
-// CI runs one name per job (.github/workflows/server-tests.yml).
+// CI runs unomi3 and unomi4, one per job (.github/workflows/server-tests.yml).
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
