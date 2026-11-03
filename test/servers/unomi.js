@@ -105,6 +105,54 @@ async function retry(action, timeoutMs = 120000) {
     }
 }
 
+// Unomi 4 reports each of its parts in /health/check; returns true when all are LIVE.
+async function healthy() {
+    const password = process.env.UNOMI_HEALTHCHECK_PASSWORD || 'tracker-test-health';
+    const response = await fetch(UNOMI_URL + '/health/check', { headers: { Authorization: basic('health:' + password) } });
+    if (!response.ok) {
+        return false;
+    }
+    const parts = await response.json();
+    return parts.length > 0 && parts.every(part => part.status === 'LIVE');
+}
+
+// The endpoints the tests use answer. A starting server registers its endpoints one by one, and can
+// remove and add them again while it starts, so a single answer is not enough. The event collector
+// refuses an empty list of events (400), which shows it is there without storing anything.
+async function endpointsAnswer(publicKey, credentials) {
+    const probe = { sessionId: 'tracker-test-probe', events: [] };
+    const keyHeader = publicKey ? { 'X-Unomi-Api-Key': publicKey } : {};
+    const post = (path, body, headers) => fetch(UNOMI_URL + path, {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
+        body: JSON.stringify(body)
+    });
+    const context = await post('/cxs/context.json', probe, keyHeader);
+    const collector = await post('/cxs/eventcollector', probe, keyHeader);
+    const search = await post('/cxs/events/search', { limit: 1 }, { Authorization: basic(credentials) });
+    return context.status === 200 && (collector.status === 200 || collector.status === 400) && search.status === 200;
+}
+
+// Waits until the server has kept answering for a while: STABLE_ROUNDS checks in a row, 2s apart.
+const STABLE_ROUNDS = 5;
+async function waitUntilStable(t, publicKey, credentials, timeoutMs = 180000) {
+    const deadline = Date.now() + timeoutMs;
+    let rounds = 0;
+    while (rounds < STABLE_ROUNDS) {
+        let ok = false;
+        try {
+            ok = (t.major < 4 || await healthy()) && await endpointsAnswer(publicKey, credentials);
+        } catch (e) {
+            // not answering yet
+        }
+        rounds = ok ? rounds + 1 : 0;
+        if (Date.now() > deadline) {
+            throw new Error('Unomi did not answer steadily at ' + UNOMI_URL + ' within ' + timeoutMs / 1000 + 's');
+        }
+        await sleep(2000);
+    }
+}
+
 // The tenant a server stores the tracker data in: the test tenant on Unomi 4 multi-tenant,
 // tenant "default" in compatibility mode, none on Unomi 2.x and 3.x.
 function tenantOf(t) {
@@ -169,6 +217,7 @@ async function setUp(t) {
     }
     // In compatibility mode, administrator requests work on tenant "default"
     await ensureScope(credentials);
+    await waitUntilStable(t, publicKey, credentials);
     console.log('Server ready: ' + t.name + (tenantId ? ', tenant ' + tenantId : '') + ', scope ' + SCOPE);
     return { publicKey: publicKey, credentials: credentials };
 }
