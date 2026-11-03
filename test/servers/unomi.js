@@ -133,6 +133,19 @@ async function endpointsAnswer(publicKey, credentials) {
     return context.status === 200 && (collector.status === 200 || collector.status === 400) && search.status === 200;
 }
 
+// Waits until all the parts of a Unomi 4 server are LIVE, before setting it up. Earlier servers
+// have no health check here; the setup retries its calls on them.
+async function waitUntilHealthy(t, timeoutMs = 180000) {
+    if (t.major < 4) {
+        return;
+    }
+    await retry(async () => {
+        if (!await healthy()) {
+            throw new Error('Unomi is not LIVE yet at ' + UNOMI_URL);
+        }
+    }, timeoutMs);
+}
+
 // Waits until the server has kept answering for a while: STABLE_ROUNDS checks in a row, 2s apart.
 const STABLE_ROUNDS = 5;
 async function waitUntilStable(t, publicKey, credentials, timeoutMs = 180000) {
@@ -202,6 +215,7 @@ async function ensureScope(credentials) {
 // credentials that can read the events.
 async function setUp(t) {
     await waitForServer();
+    await waitUntilHealthy(t);
     const tenantId = tenantOf(t);
     let publicKey;
     let credentials = t.admin;
@@ -209,8 +223,9 @@ async function setUp(t) {
         await ensureTenant(t, tenantId);
     }
     if (t.multiTenant) {
-        // Keys can only be read when they are generated, so generate new ones for this run
-        const key = async type => (await request('POST', '/cxs/tenants/' + tenantId + '/apikeys?type=' + type, { credentials: t.admin })).plainTextKey;
+        // Keys can only be read when they are generated, so generate new ones for this run. The
+        // endpoint can still be missing (404) just after the tenant is created.
+        const key = type => retry(async () => (await request('POST', '/cxs/tenants/' + tenantId + '/apikeys?type=' + type, { credentials: t.admin })).plainTextKey);
         publicKey = await key('PUBLIC');
         credentials = tenantId + ':' + await key('PRIVATE');
         console.log('Tenant ' + tenantId + ' public key: ' + publicKey);
