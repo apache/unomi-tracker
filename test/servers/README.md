@@ -22,7 +22,8 @@ These tests load the tracker in a real browser (Chromium, through Playwright) an
 each supported Unomi version, started with Docker Compose. They check what unit tests cannot:
 CORS, preflight requests, cookies, API keys and the events actually stored by the server.
 
-They are not part of CI. Run them before a release, and whenever you change how the tracker talks
+They run on every pull request, one job per name below (`.github/workflows/server-tests.yml`), and
+must pass before merging (`.asf.yaml`). Run them locally whenever you change how the tracker talks
 to the server.
 
 Requirements
