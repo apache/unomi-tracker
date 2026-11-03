@@ -140,6 +140,15 @@ Version 2.0 is a drop-in replacement: the same configuration sends the same requ
 - The package now ships TypeScript types (`dist/apache-unomi-tracker.d.ts`). The configurations shown here and in the Unomi manual compile with them. A project that declared its own types for `apache-unomi-tracker` can remove them.
 - New option `sendCredentials`, see above.
 
+Using an unreleased version
+---------------------------
+For development only, a project can depend on a commit of this repository. The tracker is built
+from source when it is installed (the `prepare` script):
+```shell
+yarn add "apache-unomi-tracker@git+https://github.com/apache/unomi-tracker.git#<commit>"
+```
+Releases of other projects must depend on a released version instead.
+
 Testing
 -------
 - `yarn test`: unit tests, and a check that the documented configurations compile against the TypeScript types

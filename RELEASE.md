@@ -61,5 +61,6 @@ Start the release process:
   - in JIRA mark the version `unomi-tracker-1.1.0` as released and add a release date
 - Publish the release package to NPM:
   - Download the Apache released package: `https://dist.apache.org/repos/dist/release/unomi/unomi-tracker/1.1.0/unomi-tracker-1.1.0.tar.gz`
-  - Untar the package and publish the package by running: `npm publish`
+  - Untar the package and publish it by running `yarn install --frozen-lockfile`, then `npm publish`.
+    `npm publish` builds `dist` from the released sources first (the `prepare` script), so the dependencies must be installed.
 - You can set the next version into `package.json` like `1.2.0` for example.
