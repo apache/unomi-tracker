@@ -151,16 +151,24 @@ const STABLE_ROUNDS = 5;
 async function waitUntilStable(t, publicKey, credentials, timeoutMs = 180000) {
     const deadline = Date.now() + timeoutMs;
     let rounds = 0;
+    let lastProblem = 'no check yet';
     while (rounds < STABLE_ROUNDS) {
         let ok = false;
         try {
-            ok = (t.major < 4 || await healthy()) && await endpointsAnswer(publicKey, credentials);
+            if (t.major >= 4 && !await healthy()) {
+                lastProblem = 'health check not LIVE';
+            } else if (!await endpointsAnswer(publicKey, credentials)) {
+                lastProblem = 'an endpoint did not answer as expected';
+            } else {
+                ok = true;
+            }
         } catch (e) {
             // not answering yet
+            lastProblem = String(e);
         }
         rounds = ok ? rounds + 1 : 0;
         if (Date.now() > deadline) {
-            throw new Error('Unomi did not answer steadily at ' + UNOMI_URL + ' within ' + timeoutMs / 1000 + 's');
+            throw new Error('Unomi did not answer steadily at ' + UNOMI_URL + ' within ' + timeoutMs / 1000 + 's (last problem: ' + lastProblem + ')');
         }
         await sleep(2000);
     }
@@ -236,8 +244,8 @@ async function ensureFormRule(credentials, publicKey) {
 }
 
 // Prepares the server before the tests: the tenant and its keys on Unomi 4, then the scope that
-// the tracker events use, and the rule that makes the tracker watch the test form. Returns the tenant public key (Unomi 4 multi-tenant only) and the
-// credentials that can read the events.
+// the tracker events use, and the rule that makes the tracker watch the test form. Returns the
+// tenant public key (Unomi 4 multi-tenant only) and the credentials that can read the events.
 async function setUp(t) {
     await waitForServer();
     await waitUntilHealthy(t);
@@ -263,21 +271,24 @@ async function setUp(t) {
     return { publicKey: publicKey, credentials: credentials };
 }
 
-// Polls until at least minCount events on the given target are indexed, and returns them.
-async function findEvents(credentials, targetId, { timeoutMs = 15000, minCount = 1 } = {}) {
+// Polls until at least minCount events on the given target are indexed, and returns them, newest
+// first. With "matching", only the events it accepts count and are returned: a server kept from an
+// earlier run can hold events on the same target.
+async function findEvents(credentials, targetId, { timeoutMs = 15000, minCount = 1, matching = () => true } = {}) {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
         const result = await request('POST', '/cxs/events/search', {
             credentials: credentials,
             body: {
                 limit: 10,
+                sortby: 'timeStamp:desc',
                 condition: {
                     type: 'eventPropertyCondition',
                     parameterValues: { propertyName: 'target.itemId', comparisonOperator: 'equals', propertyValue: targetId }
                 }
             }
         });
-        const events = result.list || [];
+        const events = (result.list || []).filter(matching);
         if (events.length >= minCount || Date.now() > deadline) {
             return events;
         }
