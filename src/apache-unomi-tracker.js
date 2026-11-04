@@ -17,6 +17,147 @@
 
 import { Crawler } from 'es6-crawler-detect';
 
+/**
+ * Whether a link or form opening in the named browsing context replaces the current page: no name,
+ * or _self, _parent or _top. Another name opens another tab or window, and the page stays.
+ * @param {string | null} name the target or formtarget attribute
+ * @return {boolean} true if the current page is replaced
+ */
+function opensInThisPage(name) {
+    var context = (name || '').trim().toLowerCase();
+    return context === '' || context === '_self' || context === '_parent' || context === '_top';
+}
+
+/**
+ * Whether a click on the element itself leaves the page: a link with an address that opens in
+ * this page (not in another tab or window, not a download, a #fragment or javascript:), or a
+ * button that submits its form into this page
+ * @param {Element} element an element
+ * @return {boolean} true if the click leaves the page
+ */
+function leavesPage(element) {
+    var tag = element.localName;
+    if (tag === 'a' || tag === 'area') {
+        var href = element.getAttribute('href');
+        if (href === null) {
+            return false;
+        }
+        href = href.trim();
+        if (href.charAt(0) === '#' || /^javascript:/i.test(href) || element.hasAttribute('download')) {
+            return false;
+        }
+        return opensInThisPage(element.getAttribute('target'));
+    }
+    var control = /** @type {HTMLButtonElement | HTMLInputElement} */(element);
+    var submits = (tag === 'button' && control.type === 'submit') || (tag === 'input' && (control.type === 'submit' || control.type === 'image'));
+    if (!submits || !control.form) {
+        return false;
+    }
+    return opensInThisPage(control.getAttribute('formtarget') || control.form.getAttribute('target'));
+}
+
+/**
+ * The element whose click leaves the page, from the clicked element up: the clicked element can be
+ * inside a link or a button (an image, an icon, some text)
+ * @param {Element | null} element the clicked element
+ * @return {Element | null} the link or button, or null if the click stays on the page
+ */
+function elementLeavingPage(element) {
+    for (var node = element; node; node = node.parentElement) {
+        if (leavesPage(node)) {
+            return node;
+        }
+    }
+    return null;
+}
+
+/**
+ * For an action held back while an event is sent: wraps its callbacks (event sent, not sent, no
+ * answer) so that only the first one called runs
+ * @return {function(function(XMLHttpRequest=): void): function(XMLHttpRequest=): void} wraps a callback so
+ *     that only the first call runs
+ */
+function settleOnce() {
+    var settled = false;
+    return function (callback) {
+        return function (xhr) {
+            if (!settled) {
+                settled = true;
+                callback(xhr);
+            }
+        };
+    };
+}
+
+/**
+ * Submits a form in browsers without requestSubmit: a copy of the submit event for the site's
+ * handlers, then submit(), with the submitting button's name and value added as a native submit does
+ * (for an image button, its click position, as 0,0), and the button's formaction, formmethod,
+ * formenctype and formtarget applied.
+ * @param {HTMLFormElement} form the form
+ * @param {HTMLButtonElement | HTMLInputElement | null} submitter the button that submitted it, if any
+ * @return {undefined}
+ */
+function submitWithoutRequestSubmit(form, submitter) {
+    /** @type {Event} */
+    var eventCopy;
+    if (typeof SubmitEvent === 'function') {
+        eventCopy = new SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: submitter });
+    } else {
+        eventCopy = document.createEvent('Event');
+        eventCopy.initEvent('submit', true, true);
+    }
+    form.dispatchEvent(eventCopy);
+    if (eventCopy.defaultPrevented) {
+        return;
+    }
+    /** @type {HTMLInputElement[]} */
+    var fields = [];
+    if (submitter && submitter.name) {
+        var values = submitter.type === 'image'
+            ? [[submitter.name + '.x', '0'], [submitter.name + '.y', '0']]
+            : [[submitter.name, submitter.value]];
+        values.forEach(function (nameAndValue) {
+            var field = document.createElement('input');
+            field.type = 'hidden';
+            field.name = nameAndValue[0];
+            field.value = nameAndValue[1];
+            form.appendChild(field);
+            fields.push(field);
+        });
+    }
+    // The button's own address, method, encoding and target, as a native submit uses them
+    /** @type {Array<[string, string | null]>} */
+    var formAttributes = [];
+    if (submitter) {
+        [['formaction', 'action'], ['formmethod', 'method'], ['formenctype', 'enctype'], ['formtarget', 'target']].forEach(function (names) {
+            var value = submitter.getAttribute(names[0]);
+            if (value !== null) {
+                formAttributes.push([names[1], form.getAttribute(names[1])]);
+                form.setAttribute(names[1], value);
+            }
+        });
+    }
+    try {
+        // The data is read when submit() is called
+        HTMLFormElement.prototype.submit.call(form);
+    } finally {
+        fields.forEach(function (field) {
+            form.removeChild(field);
+        });
+        formAttributes.forEach(function (nameAndValue) {
+            if (nameAndValue[1] === null) {
+                form.removeAttribute(nameAndValue[0]);
+            } else {
+                form.setAttribute(nameAndValue[0], nameAndValue[1]);
+            }
+        });
+    }
+}
+
+// Request timeout when the configuration gives none
+const DEFAULT_TIMEOUT_IN_MILLISECONDS = 1500;
+
 export const newTracker = () => {
     const wem = {
         /**
@@ -36,7 +177,11 @@ export const newTracker = () => {
             const { contextServerUrl, timeoutInMilliseconds, contextServerCookieName } = wem.digitalData.wemInitConfig;
             wem.contextServerCookieName = contextServerCookieName;
             wem.contextServerUrl = contextServerUrl;
-            wem.timeoutInMilliseconds = timeoutInMilliseconds;
+            // A positive number of milliseconds, or -1 for none, also given as a string (as read from
+            // an HTML attribute). Anything else (missing, 0, another negative number, a blank string)
+            // would make the request timer fire at once and every request fail, so use the default.
+            var timeout = Number(/** @type {unknown} */(timeoutInMilliseconds));
+            wem.timeoutInMilliseconds = isFinite(timeout) && (timeout === -1 || timeout > 0) ? timeout : DEFAULT_TIMEOUT_IN_MILLISECONDS;
             wem.formNamesToWatch = [];
             wem.eventsPrevented = [];
             wem.sessionID = wem.getCookie(wem.trackerSessionIdCookieName);
@@ -397,44 +542,114 @@ export const newTracker = () => {
         /**
          * This function will build an event of type click and send it to Apache Unomi
          *
+         * The event is on the element the listener is on (event.currentTarget), or on the clicked
+         * element when that one has no id or name (as when called from a listener on the document).
+         * A click that leaves the page (on a link, or on a button that submits its form, also on an
+         * element inside them) is held back until the event is sent, or could not be, then
+         * dispatched again, so that the page does not close first; without a request timeout, it is
+         * held back for 1.5s at most. A click on a link that opens another tab or window, downloads,
+         * or stays on the page (#fragment, javascript:), a click the site already prevented, and any
+         * other click are not held back. A click with a modifier key (new tab or window, download)
+         * is not held back either, unless a callback is given. With a callback, a held back click is
+         * not dispatched again: the site handles it in the callback. When tracking is off, or Unomi
+         * could not be reached, the click is left alone and nothing is sent.
+         *
          * @param {object} event javascript
          * @param {function} [successCallback] optional, will be executed if case of success
          * @param {function} [errorCallback] optional, will be executed if case of error
          * @return {undefined}
          */
         sendClickEvent: function (event, successCallback = undefined, errorCallback = undefined) {
-            if (event.target.id || event.target.name) {
+            // The element the listener is on, if it has an id or a name: the visitor may have clicked
+            // an image, an icon or some text inside it
+            var listening = /** @type {HTMLElement & { name: string } | null} */(event.currentTarget);
+            var tracked = listening && typeof listening.getAttribute === 'function' && (listening.id || listening.name) ? listening : event.target;
+            if (tracked.id || tracked.name) {
+                var targetId = tracked.id ? tracked.id : tracked.name;
+
+                // The click the tracker dispatches again once the event is sent: let it through
+                if (wem.eventsPrevented.indexOf(targetId) !== -1) {
+                    return;
+                }
+                // Tracking is off, or Unomi could not be reached: nothing is sent, so leave the click alone
+                if (wem.fallback) {
+                    return;
+                }
+
                 console.debug('[WEM] Send click event');
-                var targetId = event.target.id ? event.target.id : event.target.name;
+                var clicked = event.target;
                 var clickEvent = wem.buildEvent('click',
-                    wem.buildTarget(targetId, event.target.localName),
+                    wem.buildTarget(targetId, tracked.localName),
                     wem.buildSourcePage());
 
-                var eventIndex = wem.eventsPrevented.indexOf(targetId);
-                if (eventIndex !== -1) {
-                    wem.eventsPrevented.splice(eventIndex, 0);
-                } else {
-                    wem.eventsPrevented.push(targetId);
-
+                // A click with a modifier key leaves the page open, and dispatching it again would lose
+                // the key. With a callback, the site handles the click itself, so it is still held back.
+                // A click the site already prevented is the site's: it is not dispatched again.
+                var mouseEvent = /** @type {MouseEvent} */(/** @type {unknown} */(event));
+                var withModifier = mouseEvent.metaKey || mouseEvent.ctrlKey || mouseEvent.shiftKey || mouseEvent.altKey;
+                var holdBack = !event.defaultPrevented && elementLeavingPage(clicked) !== null &&
+                    !(withModifier && !successCallback && !errorCallback);
+                if (holdBack) {
                     event.preventDefault();
+                }
 
-                    var target = event.target;
+                // Dispatch the click again, on the clicked element and to the whole page as for the
+                // visitor's click: single-page application routers ignore the visitor's click, which
+                // is prevented, and handle this one. click() runs at once, so the tracked element is
+                // only marked while it does.
+                var dispatchAgain = function () {
+                    wem.eventsPrevented.push(targetId);
+                    try {
+                        clicked.click();
+                    } finally {
+                        var index = wem.eventsPrevented.indexOf(targetId);
+                        if (index !== -1) {
+                            wem.eventsPrevented.splice(index, 1);
+                        }
+                    }
+                };
+                var once = settleOnce();
+                /**
+                 * Once the event is sent, or could not be: the site's callback, or the held back click
+                 * @param {function(): void} log logs the outcome
+                 * @param {Function} [callback] the site's callback for this outcome
+                 * @returns {function(XMLHttpRequest=): void} the request callback, which only runs if nothing else settled
+                 */
+                var whenDone = function (log, callback) {
+                    /**
+                     * @param {XMLHttpRequest} [xhr] the request
+                     * @returns {undefined}
+                     */
+                    var settle = function (xhr) {
+                        log();
+                        if (callback) {
+                            callback(xhr);
+                        } else if (holdBack) {
+                            dispatchAgain();
+                        }
+                    };
+                    return once(settle);
+                };
+                var onSent = whenDone(function () {
+                    console.debug('[WEM] Click event successfully collected.');
+                }, successCallback);
+                var onNotSent = whenDone(function () {
+                    console.error('[WEM] Could not send click event.');
+                }, errorCallback);
 
-                    wem.collectEvent(clickEvent, function (xhr) {
-                        console.debug('[WEM] Click event successfully collected.');
-                        if (successCallback) {
-                            successCallback(xhr);
-                        } else {
-                            target.click();
-                        }
-                    }, function (xhr) {
-                        console.error('[WEM] Could not send click event.');
-                        if (errorCallback) {
-                            errorCallback(xhr);
-                        } else {
-                            target.click();
-                        }
-                    });
+                if (holdBack && wem.timeoutInMilliseconds === -1) {
+                    setTimeout(whenDone(function () {
+                        console.warn('[WEM] No answer from Unomi yet, the click goes on.');
+                    }, errorCallback), DEFAULT_TIMEOUT_IN_MILLISECONDS);
+                }
+                try {
+                    wem.collectEvent(clickEvent, onSent, onNotSent);
+                } catch (e) {
+                    // Go on once the visitor's click is done: a click dispatched during it can be ignored
+                    console.error('[WEM] Could not send click event:', e);
+                    setTimeout(function () {
+                        onNotSent(undefined);
+                    }, 0);
                 }
             }
         },
@@ -1261,35 +1476,84 @@ export const newTracker = () => {
             var form = event.target;
             var formName = form.getAttribute('name') ? form.getAttribute('name') : form.getAttribute('id');
             if (formName && wem.formNamesToWatch.indexOf(formName) > -1) {
+                // Tracking is off, or Unomi could not be reached: nothing is sent, so leave the submit alone
+                if (wem.fallback) {
+                    return;
+                }
                 console.debug('[WEM] catching form ' + formName);
 
-                var eventCopy = document.createEvent('Event');
-                // Define that the event name is 'build'.
-                eventCopy.initEvent('submit', event.bubbles, event.cancelable);
+                // The button that submitted the form, if any: the submitted data must include it
+                var submitter = /** @type {HTMLButtonElement | HTMLInputElement | null} */(event.submitter || null);
+
+                // A submit the site already prevented (it sends the form itself), or into another tab
+                // or window: the page stays, so only send the event
+                var formTarget = (submitter && submitter.getAttribute('formtarget')) || form.getAttribute('target');
+                if (event.defaultPrevented || !opensInThisPage(formTarget)) {
+                    try {
+                        wem.collectEvent(wem.buildFormEvent(formName, form));
+                    } catch (e) {
+                        console.error('[WEM] Could not send form event:', e);
+                    }
+                    return;
+                }
 
                 event.stopImmediatePropagation();
                 event.preventDefault();
 
-                wem.collectEvent(wem.buildFormEvent(formName, form),
-                    function () {
-                        form.removeEventListener('submit', wem._formSubmitEventListener, true);
-                        form.dispatchEvent(eventCopy);
-                        if (!eventCopy.defaultPrevented && !eventCopy.cancelBubble) {
-                            form.submit();
+                // Once the event is sent, or could not be: submit the form again, without the tracker's
+                // listener. The site's handlers see that submit, and it does not go on if one of them
+                // prevents it. The HTMLFormElement methods are called directly, as a field named
+                // "submit" or "requestSubmit" hides the form's own.
+                var continueSubmit = function () {
+                    form.removeEventListener('submit', wem._formSubmitEventListener, true);
+                    try {
+                        // As a native submit: the submit event, then the data with the button. It
+                        // refuses a button that is no longer in the form (the site removed or replaced
+                        // it meanwhile), before doing anything: then submit the form as older browsers do.
+                        var submitted = false;
+                        if (typeof HTMLFormElement.prototype.requestSubmit === 'function') {
+                            try {
+                                HTMLFormElement.prototype.requestSubmit.call(form, submitter);
+                                submitted = true;
+                            } catch (e) {
+                                console.debug('[WEM] requestSubmit refused the form ' + formName + ', submitting it without: ' + e);
+                            }
                         }
-                        form.addEventListener('submit', wem._formSubmitEventListener, true);
-                    },
-                    function (xhr) {
-                        console.error('[WEM] Error while collecting form event: ' + xhr.status + ' ' + xhr.statusText);
-                        xhr.abort();
-                        form.removeEventListener('submit', wem._formSubmitEventListener, true);
-                        form.dispatchEvent(eventCopy);
-                        if (!eventCopy.defaultPrevented && !eventCopy.cancelBubble) {
-                            form.submit();
+                        if (!submitted) {
+                            submitWithoutRequestSubmit(form, submitter);
                         }
+                    } catch (e) {
+                        console.error('[WEM] Could not submit form ' + formName + ':', e);
+                    } finally {
                         form.addEventListener('submit', wem._formSubmitEventListener, true);
                     }
-                );
+                };
+                // Submit once: when the event is sent, when it could not be (also when sending it
+                // throws), or, without a request timeout, after 1.5s at most
+                var once = settleOnce();
+                var onSent = once(continueSubmit);
+                var onNotSent = once(function (xhr) {
+                    console.error('[WEM] Error while collecting form event' + (xhr ? ': ' + xhr.status + ' ' + xhr.statusText : ''));
+                    if (xhr) {
+                        xhr.abort();
+                    }
+                    continueSubmit();
+                });
+                if (wem.timeoutInMilliseconds === -1) {
+                    setTimeout(once(function () {
+                        console.warn('[WEM] No answer from Unomi yet, the form is submitted.');
+                        continueSubmit();
+                    }), DEFAULT_TIMEOUT_IN_MILLISECONDS);
+                }
+                try {
+                    wem.collectEvent(wem.buildFormEvent(formName, form), onSent, onNotSent);
+                } catch (e) {
+                    // Go on once the visitor's submit is done: browsers ignore a submit made during it
+                    console.error('[WEM] Could not send form event:', e);
+                    setTimeout(function () {
+                        onNotSent(undefined);
+                    }, 0);
+                }
             }
         },
 
@@ -1362,11 +1626,12 @@ export const newTracker = () => {
          * @private
          */
         _resolveId: function (id) {
-            if (wem.digitalData.sourceLocalIdentifierMap) {
-                var source = Object.keys(wem.digitalData.sourceLocalIdentifierMap).filter(function (source) {
-                    return id.indexOf(source) > 0;
+            var map = /** @type {Record<string, string> | undefined} */(wem.digitalData.sourceLocalIdentifierMap);
+            if (map) {
+                var sources = Object.keys(map).filter(function (source) {
+                    return id.indexOf(source) !== -1;
                 });
-                return source ? id.replace(source, wem.digitalData.sourceLocalIdentifierMap[source]) : id;
+                return sources.length > 0 ? id.replace(sources[0], map[sources[0]]) : id;
             }
             return id;
         },

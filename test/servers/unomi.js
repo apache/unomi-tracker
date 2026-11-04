@@ -100,6 +100,48 @@ async function retry(action, timeoutMs = 120000) {
     }
 }
 
+// The endpoints the tests use answer. A starting server registers its endpoints one by one, and can
+// remove and add them again while it starts, so a single answer is not enough. The event collector
+// refuses an empty list of events (400), which shows it is there without storing anything.
+async function endpointsAnswer(credentials) {
+    const probe = { sessionId: 'tracker-test-probe', events: [] };
+    const post = (path, body, headers) => fetch(UNOMI_URL + path, {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
+        body: JSON.stringify(body)
+    });
+    const context = await post('/cxs/context.json', probe);
+    const collector = await post('/cxs/eventcollector', probe);
+    const search = await post('/cxs/events/search', { limit: 1 }, { Authorization: basic(credentials) });
+    return context.status === 200 && (collector.status === 200 || collector.status === 400) && search.status === 200;
+}
+
+// Waits until the server has kept answering for a while: STABLE_ROUNDS checks in a row, 2s apart.
+const STABLE_ROUNDS = 5;
+async function waitUntilStable(credentials, timeoutMs = 180000) {
+    const deadline = Date.now() + timeoutMs;
+    let rounds = 0;
+    let lastProblem = 'no check yet';
+    while (rounds < STABLE_ROUNDS) {
+        let ok = false;
+        try {
+            if (await endpointsAnswer(credentials)) {
+                ok = true;
+            } else {
+                lastProblem = 'an endpoint did not answer as expected';
+            }
+        } catch (e) {
+            // not answering yet
+            lastProblem = String(e);
+        }
+        rounds = ok ? rounds + 1 : 0;
+        if (Date.now() > deadline) {
+            throw new Error('Unomi did not answer steadily at ' + UNOMI_URL + ' within ' + timeoutMs / 1000 + 's (last problem: ' + lastProblem + ')');
+        }
+        await sleep(2000);
+    }
+}
+
 // Creates the scope if it is missing, and waits until the server returns it.
 async function ensureScope(credentials) {
     await retry(async () => {
@@ -118,34 +160,65 @@ async function ensureScope(credentials) {
     });
 }
 
-// Prepares the server before the tests: the scope that the tracker events use.
-// Returns the credentials that can read the events.
+// A rule on the submits of the test form. Unomi returns its condition to the tracker in the
+// "tracked conditions" of the context, which is how the tracker knows which forms to watch.
+const FORM_NAME = 'tracker-test-form';
+async function ensureFormRule(credentials) {
+    await request('POST', '/cxs/rules', {
+        credentials: credentials,
+        body: {
+            metadata: { id: 'tracker-test-form-rule', name: 'Tracker test form', scope: SCOPE, enabled: true },
+            condition: { type: 'formEventCondition', parameterValues: { formId: FORM_NAME } },
+            actions: [{ type: 'setPropertyAction', parameterValues: { setPropertyName: 'properties.trackerTestForm', setPropertyValue: 'sent', setPropertyStrategy: 'alwaysSet' } }]
+        }
+    });
+    // Rules are loaded in the background: wait until the context returns the condition
+    await retry(async () => {
+        const context = await request('POST', '/cxs/context.json', {
+            body: { sessionId: 'tracker-test-probe', source: { scope: SCOPE, itemType: 'page', itemId: 'tracker-test-page' } }
+        });
+        const tracked = (context.trackedConditions || []).some(condition => condition.parameterValues && condition.parameterValues.formId === FORM_NAME);
+        if (!tracked) {
+            throw new Error('The form rule is not in the tracked conditions yet');
+        }
+    });
+}
+
+// Prepares the server before the tests: the scope that the tracker events use, and the rule that
+// makes the tracker watch the test form. Returns the credentials that can read the events.
 async function setUp(t) {
     await waitForServer();
     await ensureScope(t.admin);
+    await waitUntilStable(t.admin);
+    await ensureFormRule(t.admin);
     console.log('Server ready: ' + t.name + ', scope ' + SCOPE);
     return { credentials: t.admin };
 }
 
-// Polls until click events on the given target are indexed, and returns them.
-async function findClickEvents(credentials, targetId, timeoutMs = 15000) {
+// Polls until at least minCount events on the given target are indexed, and returns them, newest
+// first. Only the 10 newest events on the target are read; with "matching", only those it accepts
+// count and are returned (a server kept from an earlier run can hold events on the same target).
+// After timeoutMs it returns what it found, which can be fewer than minCount.
+async function findEvents(credentials, targetId, { timeoutMs = 15000, minCount = 1, matching = () => true } = {}) {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
         const result = await request('POST', '/cxs/events/search', {
             credentials: credentials,
             body: {
                 limit: 10,
+                sortby: 'timeStamp:desc',
                 condition: {
                     type: 'eventPropertyCondition',
                     parameterValues: { propertyName: 'target.itemId', comparisonOperator: 'equals', propertyValue: targetId }
                 }
             }
         });
-        if ((result.list && result.list.length > 0) || Date.now() > deadline) {
-            return result.list || [];
+        const events = (result.list || []).filter(matching);
+        if (events.length >= minCount || Date.now() > deadline) {
+            return events;
         }
         await sleep(1000);
     }
 }
 
-module.exports = { UNOMI_URL, TARGETS, target, setUp, findClickEvents };
+module.exports = { UNOMI_URL, TARGETS, FORM_NAME, target, setUp, findEvents };

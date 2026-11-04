@@ -24,13 +24,24 @@ const path = require('path');
 const PORTS = [8000, 8001];
 const files = {
     '/': { file: path.join(__dirname, 'page', 'index.html'), type: 'text/html; charset=utf-8' },
-    '/tracker.js': { file: path.join(__dirname, '..', '..', 'dist', 'apache-unomi-tracker.umd.js'), type: 'text/javascript; charset=utf-8' },
+    // The current build, or another one given in TRACKER_FILE (safari.js --tracker)
+    '/tracker.js': { file: process.env.TRACKER_FILE || path.join(__dirname, '..', '..', 'dist', 'apache-unomi-tracker.umd.js'), type: 'text/javascript; charset=utf-8' },
     // Downloaded by run.js, for the comparison with the published 1.5.0
     '/tracker-1.5.0.js': { file: path.join(__dirname, '.cache', 'apache-unomi-tracker-1.5.0', 'package', 'dist', 'apache-unomi-tracker.umd.js'), type: 'text/javascript; charset=utf-8' }
 };
 
+// Where the test page's links and forms lead: a plain page (Firefox shows its own error page for
+// an empty answer, and the tests then cannot see the address)
+const DESTINATIONS = ['/arrived', '/submitted'];
+
 function handle(request, response) {
-    const entry = files[new URL(request.url, 'http://localhost').pathname];
+    const pathname = new URL(request.url, 'http://localhost').pathname;
+    if (DESTINATIONS.includes(pathname)) {
+        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
+            .end('<!DOCTYPE html><title>Arrived</title><p>Arrived</p>');
+        return;
+    }
+    const entry = files[pathname];
     if (!entry) {
         response.writeHead(404).end();
         return;
