@@ -22,9 +22,9 @@ These tests load the tracker in a real browser (Chromium, through Playwright) an
 each supported Unomi version, started with Docker Compose. They check what unit tests cannot:
 CORS, preflight requests, cookies, API keys and the events actually stored by the server.
 
-`unomi3` and `unomi4` run on every pull request (`.github/workflows/server-tests.yml`) and must pass
-before merging (`.asf.yaml`). Run all of them before a release, and whenever you change how the
-tracker talks to the server.
+`unomi3` and `unomi4` run on every pull request, in Chromium, Firefox and WebKit
+(`.github/workflows/server-tests.yml`), and must pass before merging (`.asf.yaml`). Run all of them
+before a release, and whenever you change how the tracker talks to the server.
 
 Requirements
 ------------
@@ -43,6 +43,35 @@ yarn test:servers --keep unomi4    # leave the server running afterwards
 The command builds the tracker and compares its requests with those of the published 1.5.0. Then,
 for each server, it starts the server, sets it up, runs the tests and removes the server with its
 data. It exits with an error if anything fails.
+
+Browsers
+--------
+The tests run in Chromium by default. `TRACKER_BROWSERS` chooses others, comma-separated:
+`chromium`, `firefox`, and `webkit` (Playwright's build of Safari's engine). Install them once with
+`npx playwright install firefox webkit`.
+
+```shell
+TRACKER_BROWSERS=chromium,firefox,webkit yarn test:servers unomi4
+```
+
+WebKit is not Safari: popup blocking, how long a click still counts as the visitor's own, and
+cookie rules (Intelligent Tracking Prevention) belong to Safari. `yarn test:safari` checks the
+tracker in the real Safari of a Mac, against a Unomi simulated in Node (no Docker): links followed
+once the event is sent, also when the visitor clicks inside a link; new tabs opened while Unomi is
+slow; Cmd+click; single-page application routers; site click handlers run once; links followed
+when Unomi cannot be reached or never answers; forms submitted with their button, in browsers with
+and without `requestSubmit`. `yarn test:safari --tracker <file>` runs the same checks with another
+build, for example to compare with the previous release, and `--only <text>` only the checks whose
+question contains the text.
+
+Once, on the Mac: `sudo safaridriver --enable`, then in Safari, Settings > Advanced > Show
+features for web developers, and Develop > Allow Remote Automation.
+
+Safari drops automated clicks on a hidden page (display asleep, screen locked, window hidden), so
+each check runs in a Safari session of its own, the display is kept awake during the run, and the
+run stops with no result (exit code 2) if the page is hidden anyway. A click the page did not get
+is clicked again, and a check whose clicks were dropped runs once more; both are shown in the
+output. A failing check also shows what Unomi got, the page's address and the tracker's logs.
 
 Servers
 -------
@@ -85,6 +114,38 @@ For each server:
   Non-empty `attributes` are sent as before; no default page schema accepts them, so the server
   drops the event, as with 1.5.0. Unomi 2.0 to 2.3 accept an empty one; 2.4 and later reject it
   too (UNOMI-790).
+- Personalization: Unomi chooses the variant whose condition matches, and the tracker displays it.
+  When Unomi cannot be reached, or does not answer within `timeoutInMilliseconds`, the tracker
+  falls back and displays the fallback variant.
+- A configuration without `timeoutInMilliseconds` loads the context and sends events (UNOMI-1043).
+- Clicks sent with `sendClickEvent` (UNOMI-1037), on a button and on a link, as an event listener
+  and with callbacks: every click is stored, also a second click made before the first event is
+  sent, and none twice. When the event cannot be sent, the error callback is called, or a link is
+  still followed. The site's own click handler runs once per click on a button, and single-page
+  application routers, on the document or on the link itself, handle a tracked link once per
+  click without reloading the page (UNOMI-1046).
+- A click on a child of a tracked link or button (an image, an icon, some text), with or without
+  its own id, is stored on the tracked element; the link waits for the event, then is followed
+  (UNOMI-1047).
+- Links and forms do not wait for Unomi when they keep the page: a link to a new tab, a download, a
+  form submitted into a new tab; Ctrl or Cmd+click opens a new tab, and the click is still stored
+  (UNOMI-1041). They still work at once when Unomi could not be reached, when tracking is turned
+  off (`_enableWem(false)`), or when the event cannot even be sent; without a timeout, they wait
+  1.5s at most for a Unomi that never answers (UNOMI-1040).
+- A form: the setup adds a rule on its submit, so Unomi returns it in the tracked conditions and
+  the tracker watches it. On submit, the form event is stored with the field values (text, text
+  area, checked checkboxes and radio button, selected options; empty fields are left out). The
+  site's own submit handler runs once, once the event is sent or could not be, and learns which
+  button was used. A form the site lets submit sends the same data as a native submit, with the
+  button that was used (also one named `submit`, an image button, one the site removes meanwhile),
+  in browsers with and without `requestSubmit` (UNOMI-1042), also with Enter, when the event cannot
+  be sent, and at once when tracking is turned off (UNOMI-1040). A click on a tracked submit button
+  of a tracked form stores the click and the form event.
+
+Not tested yet: optimization tests, search and video events, `invalidateSessionAndProfile`,
+digitalData overrides, personalization with a control group or a result callback, and a site and
+Unomi on different domains (the test origins are all on localhost, which browsers treat as one
+site).
 
 Files
 -----

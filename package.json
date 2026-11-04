@@ -22,6 +22,7 @@
     "prepare": "npm run build",
     "test": "node test/spec && tsc -p test/types",
     "test:servers": "node test/servers/run.js",
+    "test:safari": "node test/servers/safari.js",
     "pretest": "yarn run build",
     "lint": "eslint --ext js,json ."
   },

@@ -1,7 +1,8 @@
 name: Server Tests
 
-# The tracker in a real browser against Unomi 3 and Unomi 4 (test/servers).
-# Each job is a required check for merging into main (.asf.yaml): keep the job names in sync.
+# The tracker in Chromium, Firefox and WebKit against Unomi 3 and Unomi 4 (test/servers).
+# Each job is a required check for merging into main (.asf.yaml): keep the job names in sync. The
+# Chromium jobs keep their first names, server-tests (unomi3) and server-tests (unomi4).
 on:
   pull_request:
     types: [opened, reopened, synchronize]
@@ -18,7 +19,7 @@ concurrency:
 
 jobs:
   server-tests:
-    name: server-tests (${{ matrix.target }})
+    name: server-tests (${{ matrix.target }}${{ matrix.browser != 'chromium' && format(', {0}', matrix.browser) || '' }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -26,21 +27,24 @@ jobs:
       matrix:
         # The other names (compare-1.5.0, unomi2-legacy, unomi2, unomi4-compat) are run by hand before a release
         target: [unomi3, unomi4]
+        browser: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@v5
       - name: Install dependencies
         shell: bash
         run: yarn install --frozen-lockfile
-      - name: Install Chromium
+      - name: Install the browser
         shell: bash
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Run the tests
         shell: bash
+        env:
+          TRACKER_BROWSERS: ${{ matrix.browser }}
         run: yarn test:servers ${{ matrix.target }}
       - name: Upload the test results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ matrix.target }}
+          name: test-results-${{ matrix.target }}-${{ matrix.browser }}
           path: test/servers/test-results/
           retention-days: 7

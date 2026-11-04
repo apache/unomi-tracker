@@ -17,4 +17,8 @@ github:
         - "lint-tests"
         - "build"
         - "server-tests (unomi3)"
+        - "server-tests (unomi3, firefox)"
+        - "server-tests (unomi3, webkit)"
         - "server-tests (unomi4)"
+        - "server-tests (unomi4, firefox)"
+        - "server-tests (unomi4, webkit)"

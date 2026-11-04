@@ -147,7 +147,7 @@ _resolveId: function (id) {
 
 **Impact:** ID mapping fails, tracker can't find elements on page (forms, videos, clicks).
 
-**Test File:** See `test/bugs/bug-demonstration.test.js` for comprehensive bug verification tests.
+**Tests:** fixed in UNOMI-1037 and UNOMI-1038; see `test/servers/tracker.spec.js` (clicks, against each Unomi server) and `test/spec.js` (`_resolveId`).
 
 ---
 
@@ -790,7 +790,7 @@ To make this explicit, the public API surface is defined as:
 ## Appendix: Test Examples
 
 ### Bug Verification Test
-See `test/bugs/bug-demonstration.test.js` for comprehensive bug verification.
+The bugs are fixed (UNOMI-1037, UNOMI-1038); their tests are in `test/servers/tracker.spec.js` and `test/spec.js`.
 
 ### Server Mock Examples
 
