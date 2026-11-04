@@ -70,8 +70,8 @@ all of it are fixes.
   `formtarget` are applied).
 - UNOMI-1043: without a usable `timeoutInMilliseconds` (missing, `0`, a blank string), the default
   of 1500 ms is used; every request used to fail at once. A number given as a string works.
-- UNOMI-1038: `sourceLocalIdentifierMap` finds the elements whose id contains a mapped part anywhere, also at its start (1.x
-  missed those).
+- UNOMI-1038: `sourceLocalIdentifierMap` finds the elements whose id contains a mapped
+  part anywhere, also at its start (1.x missed those).
 
 ### Build and tests
 - The dependencies are updated within their major versions, which fixes the security advisories
