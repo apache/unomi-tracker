@@ -151,13 +151,16 @@ the visitor's click or submit does:
 - A click that leaves the page (a link, a button that submits its form) waits until its event is
   sent, or could not be, then goes on. Without a timeout (`-1`), it waits 1.5s at most.
 - Other clicks do not wait: buttons that stay on the page, links that open another tab or window,
-  downloads, `#` and `javascript:` links, clicks with Ctrl, Cmd, Shift or Alt, and clicks the site
-  already handled (`preventDefault()`, as single-page application routers do). The site's own
-  click handlers run once per click, and routers handle tracked links as usual.
+  downloads, `#` and `javascript:` links, clicks with Ctrl, Cmd, Shift or Alt (unless a callback
+  is given, see below), and clicks the site already handled (`preventDefault()`, as single-page
+  application routers do). The site's own click handlers run once per click, and routers handle
+  tracked links as usual.
 - A click on an image, an icon or some text inside a tracked element is sent on the tracked
   element.
 - With callbacks, `sendClickEvent(event, onSent, onNotSent)` calls one of them once the event is
   sent, or could not be; for a click that leaves the page, the site then handles it in the callback.
+  When tracking is off, or Unomi could not be reached, nothing is sent and neither callback is
+  called: the click goes on as if the tracker were not there.
 - A tracked form waits for its event, then is submitted as a native submit would be: the site's
   submit handlers run once, and the button that was used is sent with the form. Forms that open in
   another tab or window, and submits the site already handled, do not wait.
