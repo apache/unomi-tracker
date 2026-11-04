@@ -23,6 +23,7 @@
 //
 //   yarn test:safari                         the current build (dist), built first
 //   yarn test:safari --tracker <file>        another build of apache-unomi-tracker.umd.js
+//   yarn test:safari --only <text>           only the checks whose question contains the text
 //
 // Once, on the Mac: `sudo safaridriver --enable`, then in Safari, Settings > Advanced > Show
 // features for web developers, and Develop > Allow Remote Automation.
@@ -42,6 +43,8 @@ const KEYS = { meta: '' };
 const args = process.argv.slice(2);
 const trackerArg = args.indexOf('--tracker');
 const trackerFile = trackerArg !== -1 ? path.resolve(args[trackerArg + 1]) : null;
+const onlyArg = args.indexOf('--only');
+const only = onlyArg !== -1 ? args[onlyArg + 1].toLowerCase() : null;
 
 // --- Simulated Unomi -------------------------------------------------------------------------
 
@@ -168,10 +171,19 @@ async function waitFor(condition, timeoutMs) {
     }
 }
 
-// Opens the test page with the given options and waits for the tracker to load the context
+// Opens the test page with the given options and waits for the tracker to load the context. It
+// starts from a blank page, and waits for the test page itself: a navigation left over from the
+// previous check (a link followed late) must not land on this one.
 async function openPage(params) {
+    await safari.open('about:blank');
+    await sleep(500);
     const query = new URLSearchParams(Object.assign({ unomi: UNOMI, sessionId: 'safari-session-' + Date.now() }, params));
-    await safari.open(SITE + '/?' + query);
+    const url = SITE + '/?' + query;
+    await safari.open(url);
+    const ready = await waitFor(async () => await safari.url() === url && await safari.run('return !!(window.trackerTest && window.trackerTest.context);'), 5000);
+    if (!ready) {
+        throw new Error('The test page did not load: at ' + await safari.url());
+    }
     return safari.runAsync('const done = arguments[arguments.length - 1]; window.trackerTest.context.then(done);');
 }
 
@@ -343,7 +355,8 @@ async function main() {
         const mainWindow = (await safari.windows())[0];
         console.log('Tracker: ' + (trackerFile || 'dist/apache-unomi-tracker.umd.js') + '\n');
         let failed = 0;
-        for (const check of checks) {
+        const selected = checks.filter(check => !only || check.question.toLowerCase().includes(only));
+        for (const check of selected) {
             let result;
             try {
                 result = await check.run(mainWindow);
@@ -353,7 +366,7 @@ async function main() {
             failed += result.ok ? 0 : 1;
             console.log((result.ok ? 'PASS ' : 'FAIL ') + check.question + '\n     ' + result.details);
         }
-        console.log('\n' + (checks.length - failed) + ' of ' + checks.length + ' passed');
+        console.log('\n' + (selected.length - failed) + ' of ' + selected.length + ' passed');
         process.exitCode = failed ? 1 : 0;
         await driver('DELETE', '/session/' + session);
     } finally {

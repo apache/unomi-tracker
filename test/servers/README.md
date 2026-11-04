@@ -61,7 +61,8 @@ once the event is sent, also when the visitor clicks inside a link; new tabs ope
 slow; Cmd+click; single-page application routers; site click handlers run once; links followed
 when Unomi cannot be reached or never answers; forms submitted with their button, in browsers with
 and without `requestSubmit`. `yarn test:safari --tracker <file>` runs the same checks with another
-build, for example to compare with the previous release.
+build, for example to compare with the previous release, and `--only <text>` only the checks whose
+question contains the text.
 
 Once, on the Mac: `sudo safaridriver --enable`, then in Safari, Settings > Advanced > Show
 features for web developers, and Develop > Allow Remote Automation.
