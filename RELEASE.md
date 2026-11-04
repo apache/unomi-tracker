@@ -15,52 +15,118 @@
   ~ limitations under the License.
   -->
 
-Unomi tracker: Versioning and release
-============
+Unomi tracker: versioning and release
+=====================================
 
-Branches
--------
-Current repository is using Trunk based development.
+Branches and versions
+---------------------
+- `main`: the 2.x line, for Unomi 2.x, 3.x and 4.x.
+- `1_x`: the 1.x line, for Unomi 2.x and 3.x; fixes only.
+- `UNOMI-XXX`: a branch for one JIRA ticket, merged with a pull request.
 
-- `main`: Used for latest currently develop version
-- `1_x`: Used for maintenance branches of previous versions
-- `UNOMI-XXX`: feature or bug fix branches used to create pull request targeting the `main` branch
+Each release has a JIRA version, `unomi-tracker-X.Y.Z`, and a tag, `vX.Y.Z`. A fix for both lines
+has both fix versions, and a pull request on each branch. Below, `X.Y.Z` is the version being
+released, for example `2.0.0`.
 
-Release example for 1.1.0
--------
-Checks before starting the release process:
-- Check headers and licenses
-- Check your GPG configuration is correct ! it will be required for signing the package.
-  - Follow: https://infra.apache.org/release-signing.html
-  - And: https://unomi.apache.org/contribute/release-guide.html
-- Check that you are logged into npm and you have permission to publish the package:
-  - Create an account on NpmJS registry: https://www.npmjs.com/
-  - Ask on Apache Unomi dev mailing list (dev@unomi.apache.org) to be added as a maintainer for the package to be able to push versions
-  - Login locally: `npm login` and your credentials
-- Do a final local check:
-  - `yarn lint`: ensure linter checks are passing
-  - `yarn test`: ensure tests are passing
-  - `yarn build`: ensure build is passing
-  - `yarn test:servers`: ensure the tracker works with every supported Unomi version (needs Docker, see [test/servers](test/servers/README.md))
+Before the release
+------------------
+- In JIRA, every ticket with the fix version `unomi-tracker-X.Y.Z` is resolved, or moved to a later
+  version.
+- `CHANGES.md` has the release notes of `X.Y.Z`, and the README is up to date ("Upgrading from 1.x"
+  for a 2.x release).
+- `NOTICE` has the current year.
+- Every source file has the ASF license header. This lists the files without it (the result must
+  be empty):
+  ```shell
+  git ls-files -- '*.js' '*.ts' '*.md' '*.html' '*.yml' '*.yaml' ':!:.github/*' | xargs grep -L "Licensed to the Apache Software Foundation"
+  ```
+- Your GPG key is in `KEYS` and set up for signing: https://infra.apache.org/release-signing.html
+  and https://unomi.apache.org/contribute/release-guide.html
+- You can publish to npm: an account on https://www.npmjs.com/, added as a maintainer of
+  `apache-unomi-tracker` (ask on dev@unomi.apache.org), and `npm login`.
+- The checks pass on the commit to release:
+  - CI (all the required checks of the pull requests, `.asf.yaml`)
+  - `yarn install --frozen-lockfile`, `yarn lint`, `yarn test`
+  - `TRACKER_BROWSERS=chromium,firefox,webkit yarn test:servers`: the comparison with 1.5.0 and
+    every Unomi server, in the three browsers (Docker, see [test/servers](test/servers/README.md))
+  - `yarn test:safari` on a Mac, with Safari visible
 
-Start the release process:
-- Check version and create Git tag:
-  - Check `package.json` is using correct version: `1.1.0`
-  - Create Git tag: `git tag -s v1.1.0 -m 'create v1.1.0 tag'` (`-s` is used for signing using your local git GPG config)
-  - Push the tag: `git push origin v1.1.0`
-- Sign the package and upload the package to Apache SVN. 
-  - Download the `.tar.gz` source package from Git previously created tag.
-  - Sign the package: `gpg -ab unomi-tracker-1.1.0.tar.gz`.
-  - Verify the signature: `gpg --verify unomi-tracker-1.1.0.tar.gz.asc unomi-tracker-1.1.0.tar.gz` (Check that the signature is correctly using your Apache signature)
-  - SHA the package: `shasum -a 512 unomi-tracker-1.1.0.tar.gz > unomi-tracker-1.1.0.tar.gz.sha512`
-  - Upload the 3 files (`.tar.gz`, `.tar.gz.asc`, `.tar.gz.sha512`) to Apache SVN: `https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/1.1.0`
-    (Create the folder if it doesn't exist)
-- Start voting process, follow Unomi documentation it's the same: https://unomi.apache.org/contribute/release-guide.html
-- Wait for the vote to finnish then finalize the release on Apache side:
-  - move `https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/1.1.0` to `https://dist.apache.org/repos/dist/release/unomi/unomi-tracker/1.1.0`
-  - in JIRA mark the version `unomi-tracker-1.1.0` as released and add a release date
-- Publish the release package to NPM:
-  - Download the Apache released package: `https://dist.apache.org/repos/dist/release/unomi/unomi-tracker/1.1.0/unomi-tracker-1.1.0.tar.gz`
-  - Untar the package and publish it by running `yarn install --frozen-lockfile`, then `npm publish`.
-    `npm publish` builds `dist` from the released sources first (the `prepare` script), so the dependencies must be installed.
-- You can set the next version into `package.json` like `1.2.0` for example.
+The release candidate
+---------------------
+- `package.json` has the version `X.Y.Z`.
+- Tag and push: `git tag -s vX.Y.Z -m 'Release X.Y.Z'` (signed with your GPG key), then
+  `git push origin vX.Y.Z`.
+- The source package, from the tag:
+  ```shell
+  git archive --format=tar.gz --prefix=unomi-tracker-X.Y.Z/ -o unomi-tracker-X.Y.Z.tar.gz vX.Y.Z
+  gpg -ab unomi-tracker-X.Y.Z.tar.gz
+  gpg --verify unomi-tracker-X.Y.Z.tar.gz.asc unomi-tracker-X.Y.Z.tar.gz
+  shasum -a 512 unomi-tracker-X.Y.Z.tar.gz > unomi-tracker-X.Y.Z.tar.gz.sha512
+  ```
+  Check that the signature uses your Apache key.
+- Check the package as voters will: untar it, then `yarn install --frozen-lockfile`, `yarn test`,
+  and `npm pack --dry-run` (it builds `dist`, and lists `dist`, `NOTICE`, `KEYS`, `LICENSE`).
+- Upload the three files to https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/X.Y.Z/
+  (create the folder).
+
+The vote
+--------
+Send the vote to dev@unomi.apache.org; it lasts at least 72 hours, and needs at least three +1
+votes from PMC members, and more +1 than -1 votes
+(https://unomi.apache.org/contribute/release-guide.html). For example:
+
+```
+Subject: [VOTE] Release Apache Unomi tracker X.Y.Z
+
+Hi all,
+
+I would like to release Apache Unomi tracker X.Y.Z, the JavaScript tracker for Apache Unomi.
+<One or two sentences on what the release brings, from CHANGES.md.>
+
+Release notes:
+https://github.com/apache/unomi-tracker/blob/vX.Y.Z/CHANGES.md
+JIRA: https://issues.apache.org/jira/secure/ReleaseNote.jspa?projectId=12319220&version=<version id>
+
+Source package, signature and checksum:
+https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/X.Y.Z/
+
+Tag: https://github.com/apache/unomi-tracker/releases/tag/vX.Y.Z (commit <sha>)
+
+Signing keys: https://github.com/apache/unomi-tracker/blob/vX.Y.Z/KEYS
+
+To check the package: untar it, then yarn install --frozen-lockfile, yarn test, and
+npm pack --dry-run. The tests against Unomi servers need Docker: yarn test:servers.
+
+The vote is open for at least 72 hours.
+
+[ ] +1 Release this package as Apache Unomi tracker X.Y.Z
+[ ] +0 No opinion
+[ ] -1 Do not release this package because...
+
+Thanks,
+<name>
+```
+
+Send the result to the same list, with `[RESULT][VOTE]` in the subject, and the votes counted.
+
+After the vote
+--------------
+- Move https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/X.Y.Z to
+  https://dist.apache.org/repos/dist/release/unomi/unomi-tracker/X.Y.Z, and remove the previous
+  release of the same line from `dist/release` (it stays in the archive).
+- In JIRA, mark `unomi-tracker-X.Y.Z` as released, with the date.
+- Publish to npm, from the released package:
+  ```shell
+  curl -O https://dist.apache.org/repos/dist/release/unomi/unomi-tracker/X.Y.Z/unomi-tracker-X.Y.Z.tar.gz
+  tar xzf unomi-tracker-X.Y.Z.tar.gz && cd unomi-tracker-X.Y.Z
+  yarn install --frozen-lockfile
+  npm publish
+  ```
+  `npm publish` builds `dist` from the released sources first (the `prepare` script), so the
+  dependencies must be installed. For a 1.x release once 2.x is published, use
+  `npm publish --tag latest-1`, so that `npm install apache-unomi-tracker` keeps installing 2.x.
+- Announce the release on dev@unomi.apache.org and announce@apache.org, from your apache.org
+  address.
+- Update the tracker that Unomi bundles (`extensions/web-tracker/wab/package.json` in
+  https://github.com/apache/unomi) to the released version.
+- Set the next version in `package.json`, for example `2.1.0`.
