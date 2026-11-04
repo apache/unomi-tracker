@@ -17,8 +17,23 @@
 
 // Browser tests of the tracker against one running Unomi server. Run them through
 // `yarn test:servers`, which starts each server and sets UNOMI_TARGET.
+// TRACKER_BROWSERS chooses the browsers, comma-separated: chromium (the default), firefox, webkit
+// (Playwright's build of Safari's engine).
 const path = require('path');
 const { defineConfig } = require('@playwright/test');
+
+const BROWSERS = {
+    // The tracker treats a "HeadlessChrome" user agent as a crawler and does not start
+    chromium: { browserName: 'chromium', userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' },
+    firefox: { browserName: 'firefox' },
+    webkit: { browserName: 'webkit' }
+};
+const browsers = (process.env.TRACKER_BROWSERS || 'chromium').split(',').map(name => name.trim()).filter(Boolean);
+for (const name of browsers) {
+    if (!BROWSERS[name]) {
+        throw new Error('Unknown browser "' + name + '" in TRACKER_BROWSERS, expected: ' + Object.keys(BROWSERS).join(', '));
+    }
+}
 
 module.exports = defineConfig({
     testDir: __dirname,
@@ -28,11 +43,7 @@ module.exports = defineConfig({
     workers: 1,
     reporter: 'list',
     globalSetup: require.resolve('./global-setup.js'),
-    use: {
-        browserName: 'chromium',
-        // The tracker treats a "HeadlessChrome" user agent as a crawler and does not start
-        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-    },
+    projects: browsers.map(name => ({ name, use: BROWSERS[name] })),
     webServer: {
         command: 'node ' + JSON.stringify(path.join(__dirname, 'serve.js')),
         url: 'http://localhost:8000/',

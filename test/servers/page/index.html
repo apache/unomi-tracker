@@ -48,13 +48,20 @@
     //                    out of the configuration
     //   personalization  "true": a personalized area with three variants (optional)
     //   clickButton      id of a button whose clicks are sent with sendClickEvent (optional)
-    //   clickLink        "true": the element is a link to /arrived instead of a button; "hash": a link to
-    //                    #arrived, which keeps the page open (optional)
+    //   clickLink        the element is a link instead of a button: "true" to /arrived; "hash" to #arrived,
+    //                    which keeps the page open; "blank" to /arrived in a new tab; "download" to /arrived
+    //                    as a download (optional)
+    //   clickChild       "plain" or "withId": the visitor clicks a child of the element, without or with
+    //                    its own id, as an image or an icon inside a link (optional)
     //   clickCallback    "true": the element passes success and error callbacks to sendClickEvent (optional)
     //   form             name of a form, watched by the tracker when Unomi tracks it (optional)
     //   formSubmit       "native": the site lets the form submit to /submitted, instead of handling it (optional)
-    //   router           "true": a single-page application router, delegated on the document as React Router
-    //                    or Vue Router do: it handles the link clicks nobody prevented yet (optional)
+    //   router           a stand-in for a single-page application router, which handles the link clicks
+    //                    nobody prevented yet: "true" listens on the document (React Router listens on the
+    //                    application's root), "link" on the link itself before the tracker (as Vue Router's
+    //                    RouterLink) (optional)
+    //   formTarget       the form's target, for example "_blank" (optional)
+    //   trackSubmitButton "true": the clicks on the form's "delete" button are sent with sendClickEvent (optional)
     //   oldBrowser       "true": no HTMLFormElement.requestSubmit nor SubmitEvent, as in older browsers (optional)
     (function () {
         const params = new URLSearchParams(document.location.search);
@@ -160,11 +167,35 @@
             const element = document.createElement(params.has('clickLink') ? 'a' : 'button');
             element.id = params.get('clickButton');
             if (element.tagName === 'A') {
-                element.href = params.get('clickLink') === 'hash' ? '#arrived' : '/arrived';
+                const kind = params.get('clickLink');
+                element.href = kind === 'hash' ? '#arrived' : '/arrived';
+                if (kind === 'blank') {
+                    element.target = '_blank';
+                } else if (kind === 'download') {
+                    element.setAttribute('download', 'arrived.html');
+                }
             } else {
                 element.type = 'button';
             }
             element.textContent = 'Tracked element';
+            if (params.has('clickChild')) {
+                const child = document.createElement('span');
+                child.className = 'tracked-child';
+                child.textContent = ' (child)';
+                if (params.get('clickChild') === 'withId') {
+                    child.id = element.id + '-child';
+                }
+                element.appendChild(child);
+            }
+            if (params.get('router') === 'link') {
+                element.addEventListener('click', function (event) {
+                    if (!event.defaultPrevented) {
+                        event.preventDefault();
+                        history.pushState({}, '', element.getAttribute('href'));
+                        routed++;
+                    }
+                });
+            }
             // The site's own click handler, registered before the tracker's
             element.addEventListener('click', function () {
                 siteClicks++;
@@ -183,7 +214,8 @@
             document.body.appendChild(element);
         }
 
-        // A form with the usual fields and two submit buttons. The site handles the submit itself (like
+        // A form with the usual fields, several submit buttons (one named "submit", one the site removes
+        // after the click) and an image button. The site handles the submit itself (like
         // a form sent with JavaScript), so the page stays open, or with formSubmit=native lets it go to
         // /submitted. The tracker stops the visitor's own submit and sends the form event; the site's
         // handler then only gets the submit the tracker makes once the event is sent.
@@ -214,6 +246,12 @@
                 }
                 siteSubmits.push({ submitter: event.submitter ? event.submitter.id : null });
             });
+            if (params.has('formTarget')) {
+                form.target = params.get('formTarget');
+            }
+            if (params.get('trackSubmitButton') === 'true') {
+                form.querySelector('#delete-form').addEventListener('click', tracker.sendClickEvent);
+            }
             form.querySelector('#submit-removed').addEventListener('click', function (event) {
                 setTimeout(function () {
                     event.target.remove();
@@ -249,6 +287,10 @@
             // How many times sendClickEvent called the element's success and error callbacks
             clickCallbacks: function () {
                 return clickCallbacks;
+            },
+            // Makes sending the next events throw at once (the request cannot even be opened)
+            breakServerUrl: function () {
+                tracker.contextServerUrl = 'http://[';
             },
             // Turns tracking off, as a site does when the visitor withdraws consent
             disableTracking: function () {

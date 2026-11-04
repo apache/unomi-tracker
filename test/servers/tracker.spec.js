@@ -70,12 +70,19 @@ function expectSubmitted(page, expectedButton) {
     }
 }
 
-// Unomi gets each event 1.5s late, as when it is slow to answer
-async function answerEventsLate(page) {
+// Unomi does not answer the events until the test calls answer(): pending holds the waiting requests
+async function holdEvents(page) {
+    const pending = [];
+    let answer;
+    const answered = new Promise(resolve => {
+        answer = resolve;
+    });
     await page.route(UNOMI_URL + '/eventcollector', async route => {
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        pending.push(route);
+        await answered;
         await route.continue();
     });
+    return { pending, answer: () => answer() };
 }
 
 // The count found by findEvents stays the same 2s later: no duplicate event arrives afterwards
@@ -252,6 +259,9 @@ test.describe(server.name, () => {
                 await expectNoMoreEvents(elementId, 3);
                 if (sent.config.clickCallback) {
                     expect(await page.evaluate(() => window.trackerTest.clickCallbacks())).toEqual({ success: 3, error: 0 });
+                } else if (clicked.config.clickLink) {
+                    // The click dispatched again follows the link
+                    expect(new URL(page.url()).hash).toBe('#arrived');
                 }
             });
         }
@@ -288,20 +298,11 @@ test.describe(server.name, () => {
             const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: elementId, clickLink: 'hash' }, sent.config, siteConfig));
             expect(context.loaded).toBe(true);
             // Unomi does not answer until both clicks are made
-            const pending = [];
-            let answer;
-            const answered = new Promise(resolve => {
-                answer = resolve;
-            });
-            await page.route(UNOMI_URL + '/eventcollector', async route => {
-                pending.push(route);
-                await answered;
-                await route.continue();
-            });
+            const held = await holdEvents(page);
             await page.click('#' + elementId);
             await page.click('#' + elementId);
-            await expect.poll(() => pending.length).toBe(2);
-            answer();
+            await expect.poll(() => held.pending.length).toBe(2);
+            held.answer();
             expect(await events(elementId, { minCount: 2 })).toHaveLength(2);
             await expectNoMoreEvents(elementId, 2);
             if (sent.config.clickCallback) {
@@ -344,12 +345,13 @@ test.describe(server.name, () => {
 
     test('follows a tracked link at once when tracking is turned off (UNOMI-1040)', async ({ page }) => {
         const elementId = uniqueId('tracked-link');
-        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: elementId, clickLink: 'true' }, siteConfig));
+        const { context, requests } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: elementId, clickLink: 'true' }, siteConfig));
         expect(context.loaded).toBe(true);
         await page.evaluate(() => window.trackerTest.disableTracking());
+        const sentBefore = requests.length;
         await page.click('#' + elementId);
         await page.waitForURL('**/arrived', { timeout: 3000 });
-        expect(await events(elementId, { timeoutMs: 3000 })).toHaveLength(0);
+        expect(requests.slice(sentBefore).map(request => request.url())).toEqual([]);
     });
 
     test('opens a tracked link in a new tab with Ctrl or Cmd, and still tracks the click (UNOMI-1041)', async ({ page }) => {
@@ -364,15 +366,115 @@ test.describe(server.name, () => {
         await expectNoMoreEvents(elementId, 1);
     });
 
+    for (const child of [{ name: 'without', config: { clickChild: 'plain' } }, { name: 'with', config: { clickChild: 'withId' } }]) {
+        test('tracks a click on a child, ' + child.name + ' its own id, of a tracked link, and follows the link (UNOMI-1047)', async ({ page }) => {
+            const elementId = uniqueId('tracked-link');
+            const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: elementId, clickLink: 'true' }, child.config, siteConfig));
+            expect(context.loaded).toBe(true);
+            // Until Unomi answers, the link is not followed
+            const held = await holdEvents(page);
+            await page.click('#' + elementId + ' .tracked-child');
+            await expect.poll(() => held.pending.length).toBe(1);
+            await page.waitForTimeout(500);
+            expect(new URL(page.url()).pathname).toBe('/');
+            held.answer();
+            await page.waitForURL('**/arrived', { timeout: 5000 });
+            expect(await events(elementId)).toHaveLength(1);
+            if (child.config.clickChild === 'withId') {
+                expect(await events(elementId + '-child', { timeoutMs: 2000 })).toHaveLength(0);
+            }
+        });
+
+        test('tracks a click on a child, ' + child.name + ' its own id, of a tracked button, once (UNOMI-1047)', async ({ page }) => {
+            const elementId = uniqueId('tracked-button');
+            const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: elementId }, child.config, siteConfig));
+            expect(context.loaded).toBe(true);
+            await page.click('#' + elementId + ' .tracked-child');
+            expect(await events(elementId)).toHaveLength(1);
+            await expectNoMoreEvents(elementId, 1);
+            expect(await page.evaluate(() => window.trackerTest.siteClicks())).toBe(1);
+        });
+    }
+
+    test('lets a router on the link itself handle a tracked link, once per click (UNOMI-1040, UNOMI-1046)', async ({ page }) => {
+        const elementId = uniqueId('tracked-link');
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: elementId, clickLink: 'true', router: 'link' }, siteConfig));
+        expect(context.loaded).toBe(true);
+        const pageLoadId = await page.evaluate(() => window.trackerTest.pageLoadId());
+        for (const count of [1, 2]) {
+            await page.click('#' + elementId);
+            expect(await events(elementId, { minCount: count })).toHaveLength(count);
+            await page.waitForTimeout(500);
+            expect(await page.evaluate(() => window.trackerTest.routed())).toBe(count);
+        }
+        expect(await page.evaluate(() => window.trackerTest.pageLoadId())).toBe(pageLoadId);
+    });
+
+    test('opens a tracked link to a new tab at once, without waiting for Unomi (UNOMI-1040)', async ({ page }) => {
+        const elementId = uniqueId('tracked-link');
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: elementId, clickLink: 'blank' }, siteConfig));
+        expect(context.loaded).toBe(true);
+        const held = await holdEvents(page);
+        const newTab = page.context().waitForEvent('page', { timeout: 3000 });
+        await page.click('#' + elementId);
+        await newTab;
+        expect(held.pending.length).toBe(1);
+        held.answer();
+        expect(await events(elementId)).toHaveLength(1);
+    });
+
+    test('downloads from a tracked link at once, without waiting for Unomi (UNOMI-1040)', async ({ page }) => {
+        const elementId = uniqueId('tracked-link');
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ clickButton: elementId, clickLink: 'download' }, siteConfig));
+        expect(context.loaded).toBe(true);
+        await page.route(LISTED_ORIGIN + '/arrived', route => route.fulfill({ status: 200, contentType: 'text/plain', body: 'arrived' }));
+        const held = await holdEvents(page);
+        const download = page.waitForEvent('download', { timeout: 3000 });
+        await page.click('#' + elementId);
+        await download;
+        held.answer();
+        expect(await events(elementId)).toHaveLength(1);
+    });
+
+    for (const form of [{ name: 'a link', config: { clickButton: 'L', clickLink: 'true' } }, { name: 'a form', config: { form: FORM_NAME, formSubmit: 'native' } }]) {
+        test('lets ' + form.name + ' go on at once when its event cannot even be sent (UNOMI-1040)', async ({ page }) => {
+            const config = Object.assign({}, form.config);
+            if (config.clickButton) {
+                config.clickButton = uniqueId('tracked-link');
+            }
+            const { context } = await openPage(page, LISTED_ORIGIN, Object.assign(config, siteConfig));
+            expect(context.loaded).toBe(true);
+            await page.evaluate(() => window.trackerTest.breakServerUrl());
+            await page.click(config.clickButton ? '#' + config.clickButton : '#submit-form');
+            await page.waitForURL(config.clickButton ? '**/arrived' : '**/submitted?**', { timeout: 3000 });
+        });
+
+        test('lets ' + form.name + ' go on after 1.5s at most when Unomi never answers and there is no timeout (UNOMI-1040)', async ({ page }) => {
+            const config = Object.assign({ timeout: '-1' }, form.config);
+            if (config.clickButton) {
+                config.clickButton = uniqueId('tracked-link');
+            }
+            const { context } = await openPage(page, LISTED_ORIGIN, Object.assign(config, siteConfig));
+            expect(context.loaded).toBe(true);
+            await page.route(UNOMI_URL + '/eventcollector', () => {});
+            const start = Date.now();
+            await page.click(config.clickButton ? '#' + config.clickButton : '#submit-form');
+            await page.waitForURL(config.clickButton ? '**/arrived' : '**/submitted?**', { timeout: 5000 });
+            expect(Date.now() - start).toBeGreaterThanOrEqual(1400);
+        });
+    }
+
     test('sends the submit of a form that Unomi tracks, then lets the site handle it (UNOMI-1042)', async ({ page }) => {
         const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ form: FORM_NAME }, siteConfig));
         expect(context.loaded).toBe(true);
         expect(await page.evaluate(() => window.trackerTest.watchedForms())).toContain(FORM_NAME);
-        // Unomi gets the form event late, so the site must not see the submit before that
-        await answerEventsLate(page);
+        // Until Unomi answers, the site does not see the submit
+        const held = await holdEvents(page);
         await page.click('#submit-form');
-        await page.waitForTimeout(700);
+        await expect.poll(() => held.pending.length).toBe(1);
+        await page.waitForTimeout(500);
         expect(await page.evaluate(() => window.trackerTest.siteSubmits())).toEqual([]);
+        held.answer();
         const formEvents = await events(FORM_NAME, { matching: thisSession(context) });
         expect(formEvents).toHaveLength(1);
         expect(formEvents[0].eventType).toBe('form');
@@ -414,6 +516,7 @@ test.describe(server.name, () => {
                 await page.waitForURL('**/submitted?**', { timeout: 5000 });
                 expectSubmitted(page, button.expected);
                 expect(await events(FORM_NAME, { matching: thisSession(context) })).toHaveLength(1);
+                await expectNoMoreEvents(FORM_NAME, 1, { matching: thisSession(context) });
             });
         }
 
@@ -426,6 +529,42 @@ test.describe(server.name, () => {
             expectSubmitted(page, { action: ['delete'] });
         });
     }
+
+    test('submits a tracked form into a new tab at once, without waiting for Unomi (UNOMI-1040)', async ({ page }) => {
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ form: FORM_NAME, formSubmit: 'native', formTarget: '_blank' }, siteConfig));
+        expect(context.loaded).toBe(true);
+        const held = await holdEvents(page);
+        const newTab = page.context().waitForEvent('page', { timeout: 3000 });
+        await page.click('#delete-form');
+        const tab = await newTab;
+        await tab.waitForURL('**/submitted?**', { timeout: 3000 });
+        expect(new URL(tab.url()).searchParams.getAll('action')).toEqual(['delete']);
+        held.answer();
+        expect(await events(FORM_NAME, { matching: thisSession(context) })).toHaveLength(1);
+    });
+
+    test('submits a tracked form with Enter, as a native submit does (UNOMI-1042)', async ({ page }) => {
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ form: FORM_NAME, formSubmit: 'native' }, siteConfig));
+        expect(context.loaded).toBe(true);
+        await page.focus('input[name="email"]');
+        await page.keyboard.press('Enter');
+        await page.waitForURL('**/submitted?**', { timeout: 5000 });
+        // Enter submits with the form's first submit button
+        expectSubmitted(page, { action: ['send'] });
+        expect(await events(FORM_NAME, { matching: thisSession(context) })).toHaveLength(1);
+    });
+
+    test('tracks a click on a submit button of a tracked form, and its submit (UNOMI-1037, UNOMI-1042)', async ({ page }) => {
+        const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ form: FORM_NAME, formSubmit: 'native', trackSubmitButton: 'true' }, siteConfig));
+        expect(context.loaded).toBe(true);
+        await page.click('#delete-form');
+        await page.waitForURL('**/submitted?**', { timeout: 5000 });
+        expectSubmitted(page, { action: ['delete'] });
+        expect(await events('delete-form', { matching: thisSession(context) })).toHaveLength(1);
+        expect(await events(FORM_NAME, { matching: thisSession(context) })).toHaveLength(1);
+        await expectNoMoreEvents('delete-form', 1, { matching: thisSession(context) });
+        await expectNoMoreEvents(FORM_NAME, 1, { matching: thisSession(context) });
+    });
 
     test('submits a tracked form at once when tracking is turned off (UNOMI-1040)', async ({ page }) => {
         const { context } = await openPage(page, LISTED_ORIGIN, Object.assign({ form: FORM_NAME, formSubmit: 'native' }, siteConfig));

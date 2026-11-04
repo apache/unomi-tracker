@@ -125,7 +125,8 @@ assert.deepStrictEqual(Object.keys(pageResult.target), ['pageInfo', 'consentType
 assert.strictEqual(pageResult.source.pageInfo, pageResult.page.pageInfo, 'pageInfo is the same object');
 assert.deepStrictEqual(pageResult.page.attributes, {}, 'digitalData.page keeps its attributes');
 
-// UNOMI-1043: without timeoutInMilliseconds, the tracker uses its default instead of a timer that fires at once
+// UNOMI-1043: without a usable timeoutInMilliseconds, the tracker uses its default instead of a timer
+// that fires at once
 function timeoutFor(timeoutInMilliseconds) {
     const t = unomi.useTracker();
     const wemInitConfig = { contextServerUrl: '' };
@@ -136,53 +137,76 @@ function timeoutFor(timeoutInMilliseconds) {
     return t.timeoutInMilliseconds;
 }
 assert.strictEqual(timeoutFor('missing'), 1500, 'no timeout: the default');
-for (const value of [undefined, null, '', 'soon', NaN, Infinity]) {
-    assert.strictEqual(timeoutFor(value), 1500, 'the default for ' + String(value));
+for (const value of [undefined, null, '', '  ', 'soon', NaN, Infinity, 0, -5, '0']) {
+    assert.strictEqual(timeoutFor(value), 1500, 'the default for ' + JSON.stringify(String(value)));
 }
 assert.strictEqual(timeoutFor(3000), 3000, 'a configured timeout is kept');
 assert.strictEqual(timeoutFor(-1), -1, '-1 (no timeout) is kept');
 assert.strictEqual(timeoutFor('3000'), 3000, 'a number given as a string, as from an HTML attribute, is used');
+assert.strictEqual(timeoutFor('-1'), -1, '-1 given as a string is kept');
 
-// UNOMI-1037, UNOMI-1040, UNOMI-1041, UNOMI-1046: sendClickEvent, what happens to the visitor's
-// click. collectEvent is replaced, so each test sends or fails the event itself; the element's
-// click() runs the tracker's listener again, as browsers do for a click dispatched again.
+// UNOMI-1037, UNOMI-1040, UNOMI-1041, UNOMI-1046, UNOMI-1047: sendClickEvent, what happens to the
+// visitor's click. Fake elements have attributes and a parent; click() runs the tracker's listener on
+// the tracked element as a browser does (currentTarget is the tracked element, target the clicked
+// one). collectEvent is replaced, so each test sends or fails the event itself.
+function fakeElement(localName, attributes = {}, properties = {}) {
+    const element = Object.assign({
+        localName,
+        parentElement: null,
+        getAttribute: name => Object.prototype.hasOwnProperty.call(attributes, name) ? attributes[name] : null,
+        hasAttribute: name => Object.prototype.hasOwnProperty.call(attributes, name)
+    }, properties);
+    if (attributes.id) {
+        element.id = attributes.id;
+    }
+    return element;
+}
+
+const FORM = fakeElement('form');
 const ELEMENTS = {
     // Clicks that leave the page
-    link: { localName: 'a', hasAttribute: name => name === 'href' },
-    area: { localName: 'area', hasAttribute: name => name === 'href' },
-    submitButton: { localName: 'button', type: 'submit', form: {} },
-    submitInput: { localName: 'input', type: 'submit', form: {} },
-    imageInput: { localName: 'input', type: 'image', form: {} },
+    link: () => fakeElement('a', { href: '/next' }),
+    linkToTop: () => fakeElement('a', { href: '/next', target: '_top' }),
+    area: () => fakeElement('area', { href: '/next' }),
+    submitButton: () => fakeElement('button', {}, { type: 'submit', form: FORM }),
+    submitInput: () => fakeElement('input', {}, { type: 'submit', form: FORM }),
+    imageInput: () => fakeElement('input', {}, { type: 'image', form: FORM }),
     // Clicks that do not
-    linkWithoutAddress: { localName: 'a', hasAttribute: () => false },
-    button: { localName: 'button', type: 'button', form: {} },
-    submitButtonWithoutForm: { localName: 'button', type: 'submit', form: null },
-    checkbox: { localName: 'input', type: 'checkbox', form: {} },
-    div: { localName: 'div' }
+    linkWithoutAddress: () => fakeElement('a'),
+    linkToFragment: () => fakeElement('a', { href: '#part' }),
+    linkToScript: () => fakeElement('a', { href: 'javascript:void(0)' }),
+    linkToNewTab: () => fakeElement('a', { href: '/next', target: '_blank' }),
+    download: () => fakeElement('a', { href: '/file.pdf', download: '' }),
+    submitButtonToNewTab: () => fakeElement('button', { formtarget: '_blank' }, { type: 'submit', form: FORM }),
+    button: () => fakeElement('button', {}, { type: 'button', form: FORM }),
+    submitButtonWithoutForm: () => fakeElement('button', {}, { type: 'submit', form: null }),
+    checkbox: () => fakeElement('input', {}, { type: 'checkbox', form: FORM }),
+    div: () => fakeElement('div')
 };
-const LEAVING = ['link', 'area', 'submitButton', 'submitInput', 'imageInput'];
+const LEAVING = ['link', 'linkToTop', 'area', 'submitButton', 'submitInput', 'imageInput'];
 
-function clickTracker(kind = 'link', fallback = false) {
+function clickTracker(kind = 'link', { fallback = false, timeout = 10000 } = {}) {
     const t = unomi.useTracker();
-    t.initTracker({ scope: 'test', site: { siteInfo: { siteID: 'test' } }, page: { pageInfo: { pageID: 'home', pageName: 'Home' }, consentTypes: [] }, events: [], wemInitConfig: { contextServerUrl: '', timeoutInMilliseconds: -1 } });
+    t.initTracker({ scope: 'test', site: { siteInfo: { siteID: 'test' } }, page: { pageInfo: { pageID: 'home', pageName: 'Home' }, consentTypes: [] }, events: [], wemInitConfig: { contextServerUrl: '', timeoutInMilliseconds: timeout } });
     t.fallback = fallback;
     const sent = [];
     t.collectEvent = (event, success, error) => sent.push({ event, success, error });
-    const element = Object.assign({
-        id: 'element',
-        dispatchedAgain: [],
-        click() {
-            const event = clickOn(element);
-            t.sendClickEvent(event);
-            element.dispatchedAgain.push(event);
-        }
-    }, ELEMENTS[kind]);
+    const element = ELEMENTS[kind]();
+    element.id = 'element';
+    element.dispatchedAgain = [];
+    element.click = () => {
+        const event = clickOn(element);
+        t.sendClickEvent(event);
+        element.dispatchedAgain.push(event);
+    };
     return { t, sent, element };
 }
 
-function clickOn(target, keys = {}) {
+// A click on clicked, seen by the tracker's listener on listening (the clicked element by default)
+function clickOn(clicked, keys = {}, listening = clicked) {
     const event = {
-        target,
+        target: clicked,
+        currentTarget: listening,
         defaultPrevented: false,
         preventDefault() {
             event.defaultPrevented = true;
@@ -209,10 +233,52 @@ for (const kind of Object.keys(ELEMENTS)) {
         }
         assert.strictEqual(clicks.sent.length, 1, kind + ': the click dispatched again is not sent');
         assert.deepStrictEqual(clicks.t.eventsPrevented, [], kind + ': nothing is left marked');
+        clicks.sent[0][outcome === 'success' ? 'error' : 'success']({});
+        assert.strictEqual(clicks.element.dispatchedAgain.length, leaves ? 1 : 0, kind + ': a second outcome for the same click does nothing');
         clicks.t.sendClickEvent(clickOn(clicks.element));
         assert.strictEqual(clicks.sent.length, 2, kind + ': the next click is sent too');
     }
 }
+
+// An image, an icon or some text inside the tracked link or button (UNOMI-1047)
+for (const childId of [undefined, 'icon']) {
+    for (const kind of ['link', 'submitButton', 'button']) {
+        clicks = clickTracker(kind);
+        const child = fakeElement('img', childId ? { id: childId } : {});
+        child.parentElement = clicks.element;
+        child.dispatchedAgain = 0;
+        child.click = () => {
+            child.dispatchedAgain++;
+            clicks.t.sendClickEvent(clickOn(child, {}, clicks.element));
+        };
+        click = clickOn(child, {}, clicks.element);
+        clicks.t.sendClickEvent(click);
+        const leaves = kind !== 'button';
+        const label = kind + ' with a child ' + (childId ? 'with' : 'without') + ' an id';
+        assert.strictEqual(clicks.sent.length, 1, label + ': the click is sent');
+        assert.strictEqual(clicks.sent[0].event.target.itemId, 'element', label + ': on the tracked element');
+        assert.strictEqual(click.defaultPrevented, leaves, label + ': held back as for the element itself');
+        clicks.sent[0].success({});
+        assert.strictEqual(child.dispatchedAgain, leaves ? 1 : 0, label + ': dispatched again on the clicked child');
+        assert.strictEqual(clicks.sent.length, 1, label + ': the click dispatched again is not sent');
+    }
+}
+
+// Called from a listener on the document: the clicked element is tracked, as before
+clicks = clickTracker();
+click = clickOn(clicks.element, {}, { nodeType: 9 });
+clicks.t.sendClickEvent(click);
+assert.strictEqual(clicks.sent.length, 1, 'from a listener on the document, the click is sent');
+assert.strictEqual(clicks.sent[0].event.target.itemId, 'element', 'on the clicked element');
+assert.strictEqual(click.defaultPrevented, true, 'and held back');
+
+// A click the site already prevented (a router on the link, registered first) is the site's
+clicks = clickTracker();
+click = clickOn(clicks.element, { defaultPrevented: true });
+clicks.t.sendClickEvent(click);
+assert.strictEqual(clicks.sent.length, 1, 'a click the site prevented is sent');
+clicks.sent[0].success({});
+assert.strictEqual(clicks.element.dispatchedAgain.length, 0, 'and not dispatched again');
 
 clicks = clickTracker();
 clicks.t.sendClickEvent(clickOn(clicks.element));
@@ -237,7 +303,7 @@ for (const kind of ['link', 'button']) {
 }
 
 for (const kind of ['link', 'button']) {
-    clicks = clickTracker(kind, true);
+    clicks = clickTracker(kind, { fallback: true });
     click = clickOn(clicks.element);
     clicks.t.sendClickEvent(click);
     assert.strictEqual(click.defaultPrevented, false, kind + ' in fallback: the click goes through');
@@ -257,11 +323,43 @@ for (const key of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {
     assert.strictEqual(click.defaultPrevented, true, 'with a callback, a click with ' + key + ' is held back for the site');
 }
 
+// When sending the event throws at once, the click goes on, or the error callback is called
 clicks = clickTracker();
-click = clickOn({ localName: 'a' });
+clicks.t.collectEvent = () => {
+    throw new Error('cannot send');
+};
+click = clickOn(clicks.element);
+clicks.t.sendClickEvent(click);
+assert.strictEqual(click.defaultPrevented, true, 'when sending throws, the click was held back');
+assert.strictEqual(clicks.element.dispatchedAgain.length, 0, 'not dispatched again during the visitor\'s click');
+let thrownErrors = 0;
+clicks.t.sendClickEvent(clickOn(clicks.element), () => {}, () => thrownErrors++);
+const throwing = clicks;
+setTimeout(() => {
+    assert.strictEqual(throwing.element.dispatchedAgain.length, 1, 'dispatched again right after it');
+    assert.strictEqual(thrownErrors, 1, 'with callbacks, the error callback is called');
+}, 0);
+
+clicks = clickTracker();
+click = clickOn(fakeElement('a', { href: '/next' }));
 clicks.t.sendClickEvent(click);
 assert.strictEqual(click.defaultPrevented, false, 'an element without id or name is not tracked');
 assert.strictEqual(clicks.sent.length, 0, 'and nothing is sent');
+
+// Without a request timeout (-1), a held back click goes on after 1.5s at most, once
+const noAnswer = clickTracker('link', { timeout: -1 });
+noAnswer.t.sendClickEvent(clickOn(noAnswer.element));
+assert.strictEqual(noAnswer.element.dispatchedAgain.length, 0, 'without a timeout, the click is held back at first');
+setTimeout(() => {
+    assert.strictEqual(noAnswer.element.dispatchedAgain.length, 0, 'still held back after 1s');
+}, 1000);
+setTimeout(() => {
+    assert.strictEqual(noAnswer.element.dispatchedAgain.length, 1, 'dispatched again after 1.5s');
+    noAnswer.sent[0].success({});
+    assert.strictEqual(noAnswer.element.dispatchedAgain.length, 1, 'a late answer from Unomi does not dispatch it again');
+    // The last check, which runs after all the others
+    console.log('Tests passed');
+}, 1700);
 
 // UNOMI-1038: ids of tracked videos and links, mapped through digitalData.sourceLocalIdentifierMap
 function resolveId(id, sourceLocalIdentifierMap) {
@@ -275,5 +373,3 @@ assert.strictEqual(resolveId('live-video', idMap), 'default-video', 'a mapped pa
 assert.strictEqual(resolveId('page-live-video', idMap), 'page-default-video', 'a mapped part inside the id');
 assert.strictEqual(resolveId('other-video', idMap), 'other-video', 'an id without a mapped part is unchanged');
 assert.strictEqual(resolveId('live-video', undefined), 'live-video', 'no map, no change');
-
-console.log('Tests passed');
