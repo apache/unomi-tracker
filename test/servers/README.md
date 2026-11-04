@@ -67,6 +67,12 @@ question contains the text.
 Once, on the Mac: `sudo safaridriver --enable`, then in Safari, Settings > Advanced > Show
 features for web developers, and Develop > Allow Remote Automation.
 
+Safari drops automated clicks on a hidden page (display asleep, screen locked, window hidden), so
+each check runs in a Safari session of its own, the display is kept awake during the run, and the
+run stops with no result (exit code 2) if the page is hidden anyway. A click the page did not get
+is clicked again, and a check whose clicks were dropped runs once more; both are shown in the
+output. A failing check also shows what Unomi got, the page's address and the tracker's logs.
+
 Servers
 -------
 | Name | Server | Search engine | Setup before the tests |

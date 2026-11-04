@@ -112,6 +112,8 @@ function setUnomi(mode, delayMs = 0) {
 // --- WebDriver ---------------------------------------------------------------------------------
 
 let session;
+// The clicks Safari dropped, clicked again
+const retriedClicks = [];
 
 async function driver(method, endpoint, body) {
     const response = await fetch('http://localhost:' + DRIVER_PORT + endpoint, {
@@ -132,7 +134,23 @@ const safari = {
     run: (script, ...scriptArgs) => driver('POST', '/session/' + session + '/execute/sync', { script, args: scriptArgs }),
     runAsync: (script, ...scriptArgs) => driver('POST', '/session/' + session + '/execute/async', { script, args: scriptArgs }),
     find: async selector => (await driver('POST', '/session/' + session + '/element', { using: 'css selector', value: selector }))[ELEMENT],
-    click: async selector => driver('POST', '/session/' + session + '/element/' + await safari.find(selector) + '/click', {}),
+    clickOnce: async selector => driver('POST', '/session/' + session + '/element/' + await safari.find(selector) + '/click', {}),
+    // Safari sometimes drops a WebDriver click (after a tab was closed, the page may not have the
+    // focus yet): click again if the page saw no click and did not change, and say so
+    click: async selector => {
+        for (let attempt = 1; ; attempt++) {
+            const before = await safari.url();
+            const clicksBefore = await safari.run('return window.harnessClicks || 0;');
+            await safari.clickOnce(selector);
+            const delivered = await waitFor(async () => await safari.url() !== before || await safari.run('return window.harnessClicks || 0;') > clicksBefore, 1000);
+            if (delivered || attempt === 2) {
+                return;
+            }
+            // Whether the page had the focus and was visible: Safari drops clicks when it has not
+            const state = await safari.run('return (document.hasFocus() ? "focused" : "not focused") + ", " + document.visibilityState;');
+            retriedClicks.push(selector + ' (page ' + state + ')');
+        }
+    },
     clickWithKey: async (selector, key) => {
         const element = await safari.find(selector);
         await driver('POST', '/session/' + session + '/actions', {
@@ -162,6 +180,12 @@ async function closeOtherWindows(keep) {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+class PageHidden extends Error {
+    constructor() {
+        super('Safari\'s page is hidden: the display is asleep, the screen is locked, or the window cannot be seen');
+    }
+}
+
 async function waitFor(condition, timeoutMs) {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
@@ -186,8 +210,10 @@ async function openPage(params) {
     if (!ready) {
         throw new Error('The test page did not load: at ' + await safari.url());
     }
-    // Keep what the tracker logs from now on, to explain a failure
-    await safari.run(`window.trackerLogs = [];
+    // Count the clicks the page sees, and keep what the tracker logs from now on, to explain a failure
+    await safari.run(`window.harnessClicks = 0;
+        window.addEventListener('click', () => window.harnessClicks++, true);
+        window.trackerLogs = [];
         ['debug', 'info', 'log', 'warn', 'error'].forEach(level => {
             const original = console[level];
             console[level] = function () {
@@ -195,6 +221,12 @@ async function openPage(params) {
                 return original.apply(console, arguments);
             };
         });`);
+    // Let Safari give the page the focus before the first click. Safari drops the clicks on a
+    // hidden page (display asleep, screen locked, window hidden): that is no tracker result.
+    await sleep(300);
+    if (await safari.run('return document.visibilityState;') === 'hidden') {
+        throw new PageHidden();
+    }
     return safari.runAsync('const done = arguments[arguments.length - 1]; window.trackerTest.context.then(done);');
 }
 
@@ -352,30 +384,63 @@ async function main() {
         page.kill();
         safaridriver.kill();
         unomiServer.close();
+        if (awake) {
+            awake.kill();
+        }
     };
+    // Keep the display awake, and wake it, while the checks run: Safari drops clicks on a hidden page
+    const awake = fs.existsSync('/usr/bin/caffeinate') ? spawn('/usr/bin/caffeinate', ['-d', '-u'], { stdio: 'ignore' }) : null;
     try {
         await sleep(1500);
-        try {
+        // Each check in a session of its own: a tab a check opened and closed can leave Safari's window
+        // without the focus, and Safari then drops the clicks of the following checks
+        const startSession = async () => {
             session = (await driver('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'safari' } } })).sessionId;
+            return (await safari.windows())[0];
+        };
+        try {
+            await startSession();
+            await driver('DELETE', '/session/' + session);
         } catch (e) {
             console.error('Could not start Safari through safaridriver: ' + e.message);
             console.error('Once: `sudo safaridriver --enable`, then Safari > Develop > Allow Remote Automation.');
             process.exitCode = 2;
             return;
         }
-        const mainWindow = (await safari.windows())[0];
         console.log('Tracker: ' + (trackerFile || 'dist/apache-unomi-tracker.umd.js') + '\n');
         let failed = 0;
         const selected = checks.filter(check => !only || check.question.toLowerCase().includes(only));
         for (const check of selected) {
             let result;
-            try {
-                result = await check.run(mainWindow);
-            } catch (e) {
-                result = { ok: false, details: e.message };
+            let rerun = false;
+            // A check whose clicks Safari dropped tells nothing about the tracker: run it once more
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                if (attempt === 2) {
+                    await driver('DELETE', '/session/' + session);
+                    rerun = true;
+                }
+                retriedClicks.length = 0;
+                const mainWindow = await startSession();
+                try {
+                    result = await check.run(mainWindow);
+                } catch (e) {
+                    if (e instanceof PageHidden) {
+                        throw e;
+                    }
+                    result = { ok: false, details: e.message };
+                }
+                if (result.ok || !retriedClicks.length) {
+                    break;
+                }
             }
             failed += result.ok ? 0 : 1;
             console.log((result.ok ? 'PASS ' : 'FAIL ') + check.question + '\n     ' + result.details);
+            if (rerun) {
+                console.log('     (run again: Safari dropped the clicks of the first run)');
+            }
+            if (retriedClicks.length) {
+                console.log('     (Safari dropped a click on ' + retriedClicks.join(', ') + ', clicked again)');
+            }
             if (!result.ok) {
                 // What happened, to tell a tracker problem from a test or browser one
                 console.log('     Unomi got: ' + (unomi.requests.join(', ') || 'nothing'));
@@ -387,10 +452,10 @@ async function main() {
                     console.log('     page: unavailable (' + e.message + ')');
                 }
             }
+            await driver('DELETE', '/session/' + session);
         }
         console.log('\n' + (selected.length - failed) + ' of ' + selected.length + ' passed');
         process.exitCode = failed ? 1 : 0;
-        await driver('DELETE', '/session/' + session);
     } finally {
         stop();
     }
@@ -401,6 +466,10 @@ if (!fs.existsSync('/usr/bin/safaridriver')) {
     process.exit(2);
 }
 main().catch(e => {
+    if (e instanceof PageHidden) {
+        console.error('\n' + e.message + '. The checks need a visible Safari window: stopped, no result.');
+        process.exit(2);
+    }
     console.error(e);
     process.exit(1);
 });
