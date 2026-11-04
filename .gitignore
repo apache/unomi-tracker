@@ -279,3 +279,6 @@ test/servers/.cache/
 
 # Build output, produced by the prepare script
 /dist
+
+# LICENSE while npm pack uses LICENSE-binary (scripts/npm-license.js)
+/.LICENSE-source

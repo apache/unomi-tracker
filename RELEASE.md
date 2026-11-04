@@ -36,9 +36,11 @@ Before the release
   for a 2.x release).
 - `NOTICE` has the current year.
 - The licensing is right (https://www.apache.org/legal/release-policy.html#licensing):
-  `LICENSE` and `NOTICE` describe exactly what each package contains, and every dependency bundled
-  in `dist` (`npm pack --dry-run` shows the package) has a license of category A
-  (https://www.apache.org/legal/resolved.html).
+  `LICENSE` and `NOTICE` describe exactly what each package contains. The source package has
+  `LICENSE` (the Apache License). The npm package bundles third-party code in its browser build, so
+  it has `LICENSE-binary` as its `LICENSE`, which also lists those components (`npm pack` puts it in
+  place, see `scripts/npm-license.js`; `yarn test` checks that it matches the build). Every bundled
+  component has a license of category A (https://www.apache.org/legal/resolved.html).
 - Every source file has the ASF license header. This lists the files without it (the result must
   be empty):
   ```shell
@@ -74,7 +76,8 @@ The release candidate
   ```
   Check that the signature uses your Apache key.
 - Check the package as voters will: untar it, then `yarn install --frozen-lockfile`, `yarn test`,
-  and `npm pack --dry-run` (it builds `dist`, and lists `dist`, `NOTICE`, `KEYS`, `LICENSE`).
+  and `npm pack` (it builds `dist`; the package has `dist`, `NOTICE`, `KEYS`, and as `LICENSE` the
+  content of `LICENSE-binary`).
 - Upload the three files to https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/X.Y.Z/
   (create the folder).
 

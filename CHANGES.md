@@ -78,6 +78,9 @@ all of it are fixes.
   pages load, now requires 7.26.10 or later; the others are build tools.
 - `dist` is no longer committed: it is built when the package is published, and when a project
   installs a commit of this repository (the `prepare` script, for development only).
+- The npm package's `LICENSE` now lists the third-party code its browser build bundles
+  (`es6-crawler-detect` and a `@babel/runtime` helper, both MIT), and the browser build's header
+  gives their licenses. The 1.x packages had the Apache License only.
 - Tests: unit tests; browser tests against Unomi 2.3, 2.7, 3.0, 4.0 multi-tenant and 4.0
   single-tenant (Docker), in Chromium, Firefox and WebKit; a comparison of the requests with the
   published 1.5.0; checks in the real Safari of a Mac. Pull requests must pass the tests against

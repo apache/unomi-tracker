@@ -21,6 +21,20 @@ import babel from '@rollup/plugin-babel';
 import license from 'rollup-plugin-license';
 import pkg from './package.json';
 import * as path from 'path';
+import * as fs from 'fs';
+
+// The browser build bundles third-party code: its header names it, with its license (the npm package's
+// LICENSE-binary lists it too, see scripts/npm-license.js)
+// eslint-disable-next-line no-undef
+const header = fs.readFileSync(path.join(__dirname, 'LICENSE_HEADER'), 'utf8').trim();
+const bundledHeader = header + `
+
+This file also contains code from the following packages, under their own licenses:
+<% _.forEach(_.sortBy(dependencies, 'name'), function (dependency) { %>
+<%= dependency.name %> <%= dependency.version %> (<%= dependency.license %>)
+
+<%= dependency.licenseText.replace(/\\r\\n/g, '\\n').trim() %>
+<% }) %>`;
 
 export default [
     {
@@ -35,10 +49,7 @@ export default [
             license({
                 banner: {
                     commentStyle: 'regular',
-                    content: {
-                        // eslint-disable-next-line no-undef
-                        file: path.join(__dirname, 'LICENSE_HEADER')
-                    }
+                    content: bundledHeader
                 }
             }),
             resolve(),
