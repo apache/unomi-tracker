@@ -42,16 +42,55 @@
     //   noBufferShim     load the tracker without the Buffer shim (optional)
     //   pageAttributes   digitalData.page.attributes as JSON, for example {} (optional)
     //   sessionId        session ID to use instead of a new one (optional)
+    //   timeout          wemInitConfig.timeoutInMilliseconds (optional, 10000 by default); "none" leaves it
+    //                    out of the configuration
+    //   personalization  "true": a personalized area with three variants (optional)
+    //   clickButton      id of a button whose clicks are sent with sendClickEvent (optional)
+    //   clickLink        the element is a link instead of a button: "true" to /arrived; "hash" to #arrived,
+    //                    which keeps the page open; "blank" to /arrived in a new tab; "download" to /arrived
+    //                    as a download (optional)
+    //   clickChild       "plain" or "withId": the visitor clicks a child of the element, without or with
+    //                    its own id, as an image or an icon inside a link (optional)
+    //   clickCallback    "true": the element passes success and error callbacks to sendClickEvent (optional)
+    //   form             name of a form, watched by the tracker when Unomi tracks it (optional)
+    //   formSubmit       "native": the site lets the form submit to /submitted, instead of handling it (optional)
+    //   router           a stand-in for a single-page application router, which handles the link clicks
+    //                    nobody prevented yet: "true" listens on the document (React Router listens on the
+    //                    application's root), "link" on the link itself before the tracker (as Vue Router's
+    //                    RouterLink) (optional)
+    //   formTarget       the form's target, for example "_blank" (optional)
+    //   trackSubmitButton "true": the clicks on the form's "delete" button are sent with sendClickEvent (optional)
+    //   oldBrowser       "true": no HTMLFormElement.requestSubmit nor SubmitEvent, as in older browsers (optional)
     (function () {
         const params = new URLSearchParams(document.location.search);
+        if (params.get('oldBrowser') === 'true') {
+            delete HTMLFormElement.prototype.requestSubmit;
+            delete window.SubmitEvent;
+        }
+        // Changes with each page load: the same value after a click shows the page was not reloaded
+        const pageLoadId = Math.random();
+        let routed = 0;
+        if (params.get('router') === 'true') {
+            document.addEventListener('click', function (event) {
+                const link = event.target.closest && event.target.closest('a');
+                if (link && !event.defaultPrevented) {
+                    event.preventDefault();
+                    history.pushState({}, '', link.getAttribute('href'));
+                    routed++;
+                }
+            });
+        }
         const wemInitConfig = {
             contextServerUrl: params.get('unomi'),
-            timeoutInMilliseconds: 10000,
+            timeoutInMilliseconds: params.has('timeout') ? Number(params.get('timeout')) : 10000,
             contextServerCookieName: 'context-profile-id',
             activateWem: true,
             trackerSessionIdCookieName: 'tracker-test-session-id',
             trackerProfileIdCookieName: 'tracker-test-profile-id'
         };
+        if (params.get('timeout') === 'none') {
+            delete wemInitConfig.timeoutInMilliseconds;
+        }
         const digitalData = {
             scope: 'tracker-test',
             site: { siteInfo: { siteID: 'tracker-test' } },
@@ -85,7 +124,174 @@
         // initTracker replaces the tracker configuration, so register the callback after it
         tracker.initTracker(digitalData);
 
+        // A personalized area: Unomi picks "always" (its condition always matches) over "never" (its
+        // condition never matches); "fallback" is shown when Unomi cannot be reached.
+        const personalizedArea = document.createElement('div');
+        if (params.get('personalization') === 'true') {
+            personalizedArea.id = 'tracker-test-personalization';
+            ['never', 'always', 'fallback'].forEach(function (name) {
+                const variant = document.createElement('div');
+                variant.id = 'variant-' + name;
+                variant.textContent = name;
+                personalizedArea.appendChild(variant);
+            });
+            document.body.appendChild(personalizedArea);
+            tracker.registerPersonalizationObject({
+                id: personalizedArea.id,
+                strategy: 'matching-first',
+                strategyOptions: { fallback: 'fallback' },
+                contents: [
+                    { id: 'never', filters: [{ condition: { type: 'profilePropertyCondition', parameterValues: { propertyName: 'properties.trackerTestNever', comparisonOperator: 'exists' } } }] },
+                    { id: 'always', filters: [{ condition: { type: 'matchAllCondition', parameterValues: {} } }] }
+                ]
+            }, {
+                never: { content: 'variant-never', position: 0 },
+                always: { content: 'variant-always', position: 1 },
+                fallback: { content: 'variant-fallback', position: 2 }
+            });
+        }
+
+        // A button or a link sending its clicks the way the Unomi manual shows, or with callbacks, as a
+        // site does when it handles the click itself once the event is sent
+        const clickCallbacks = { success: 0, error: 0 };
+        let siteClicks = 0;
+        if (params.has('clickButton')) {
+            const element = document.createElement(params.has('clickLink') ? 'a' : 'button');
+            element.id = params.get('clickButton');
+            if (element.tagName === 'A') {
+                const kind = params.get('clickLink');
+                element.href = kind === 'hash' ? '#arrived' : '/arrived';
+                if (kind === 'blank') {
+                    element.target = '_blank';
+                } else if (kind === 'download') {
+                    element.setAttribute('download', 'arrived.html');
+                }
+            } else {
+                element.type = 'button';
+            }
+            element.textContent = 'Tracked element';
+            if (params.has('clickChild')) {
+                const child = document.createElement('span');
+                child.className = 'tracked-child';
+                child.textContent = ' (child)';
+                if (params.get('clickChild') === 'withId') {
+                    child.id = element.id + '-child';
+                }
+                element.appendChild(child);
+            }
+            if (params.get('router') === 'link') {
+                element.addEventListener('click', function (event) {
+                    if (!event.defaultPrevented) {
+                        event.preventDefault();
+                        history.pushState({}, '', element.getAttribute('href'));
+                        routed++;
+                    }
+                });
+            }
+            // The site's own click handler, registered before the tracker's
+            element.addEventListener('click', function () {
+                siteClicks++;
+            });
+            if (params.get('clickCallback') === 'true') {
+                element.addEventListener('click', function (event) {
+                    tracker.sendClickEvent(event, function () {
+                        clickCallbacks.success++;
+                    }, function () {
+                        clickCallbacks.error++;
+                    });
+                });
+            } else {
+                element.addEventListener('click', tracker.sendClickEvent);
+            }
+            document.body.appendChild(element);
+        }
+
+        // A form with the usual fields, several submit buttons (one named "submit", one the site removes
+        // after the click) and an image button. The site handles the submit itself (like
+        // a form sent with JavaScript), so the page stays open, or with formSubmit=native lets it go to
+        // /submitted. The tracker stops the visitor's own submit and sends the form event; the site's
+        // handler then only gets the submit the tracker makes once the event is sent.
+        const siteSubmits = [];
+        if (params.has('form')) {
+            const form = document.createElement('form');
+            form.setAttribute('name', params.get('form'));
+            form.action = '/submitted';
+            form.method = 'get';
+            form.innerHTML = '<input type="email" name="email" value="tracker-test@example.com">'
+                + '<input type="checkbox" name="topics" value="news" checked>'
+                + '<input type="checkbox" name="topics" value="offers">'
+                + '<select name="country"><option value="fr">France</option><option value="ch" selected>Switzerland</option></select>'
+                + '<select name="languages" multiple><option value="fr" selected>French</option><option value="de" selected>German</option><option value="it">Italian</option></select>'
+                + '<input type="radio" name="contact" value="email" checked><input type="radio" name="contact" value="phone">'
+                + '<textarea name="message">Hello</textarea>'
+                + '<input type="text" name="company" value="">'
+                + '<button type="submit" id="submit-form" name="action" value="send">Send</button>'
+                + '<button type="submit" id="delete-form" name="action" value="delete">Delete</button>'
+                // A button named "submit" hides the form's own submit()
+                + '<button type="submit" id="submit-named" name="submit" value="go">Go</button>'
+                // The site takes this button out of the form right after the click
+                + '<button type="submit" id="submit-removed" name="action" value="removed">Done</button>'
+                + '<input type="image" id="submit-image" name="pic" alt="Send" width="20" height="20" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">';
+            form.addEventListener('submit', function (event) {
+                if (params.get('formSubmit') !== 'native') {
+                    event.preventDefault();
+                }
+                siteSubmits.push({ submitter: event.submitter ? event.submitter.id : null });
+            });
+            if (params.has('formTarget')) {
+                form.target = params.get('formTarget');
+            }
+            if (params.get('trackSubmitButton') === 'true') {
+                form.querySelector('#delete-form').addEventListener('click', tracker.sendClickEvent);
+            }
+            form.querySelector('#submit-removed').addEventListener('click', function (event) {
+                setTimeout(function () {
+                    event.target.remove();
+                }, 0);
+            });
+            document.body.appendChild(form);
+        }
+
         window.trackerTest = {
+            // The variants of the personalized area that are displayed
+            shownVariants: function () {
+                return Array.prototype.filter.call(personalizedArea.children, function (variant) {
+                    return variant.style.display !== 'none';
+                }).map(function (variant) {
+                    return variant.id;
+                });
+            },
+            // The submits the site's own handler received
+            siteSubmits: function () {
+                return siteSubmits;
+            },
+            // Whether the page is still the one first loaded, and how many link clicks the router handled
+            pageLoadId: function () {
+                return pageLoadId;
+            },
+            routed: function () {
+                return routed;
+            },
+            // How many times the site's own click handler ran on the element
+            siteClicks: function () {
+                return siteClicks;
+            },
+            // How many times sendClickEvent called the element's success and error callbacks
+            clickCallbacks: function () {
+                return clickCallbacks;
+            },
+            // Makes sending the next events throw at once (the request cannot even be opened)
+            breakServerUrl: function () {
+                tracker.contextServerUrl = 'http://[';
+            },
+            // Turns tracking off, as a site does when the visitor withdraws consent
+            disableTracking: function () {
+                tracker._enableWem(false);
+            },
+            // The forms the tracker watches (those Unomi returned in the tracked conditions)
+            watchedForms: function () {
+                return tracker.getFormNamesToWatch();
+            },
             // Resolves once the context is loaded, or once the tracker falls back after an error
             context: new Promise(function (resolve) {
                 tracker._registerCallback(function () {
