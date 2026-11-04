@@ -35,13 +35,22 @@ Before the release
 - `CHANGES.md` has the release notes of `X.Y.Z`, and the README is up to date ("Upgrading from 1.x"
   for a 2.x release).
 - `NOTICE` has the current year.
+- The licensing is right (https://www.apache.org/legal/release-policy.html#licensing):
+  `LICENSE` and `NOTICE` describe exactly what each package contains, and every dependency bundled
+  in `dist` (`npm pack --dry-run` shows the package) has a license of category A
+  (https://www.apache.org/legal/resolved.html).
 - Every source file has the ASF license header. This lists the files without it (the result must
   be empty):
   ```shell
   git ls-files -- '*.js' '*.ts' '*.md' '*.html' '*.yml' '*.yaml' ':!:.github/*' | xargs grep -L "Licensed to the Apache Software Foundation"
   ```
-- Your GPG key is in `KEYS` and set up for signing: https://infra.apache.org/release-signing.html
-  and https://unomi.apache.org/contribute/release-guide.html
+- Your signing key: an RSA key of at least 2048 bits (4096 recommended) with your @apache.org
+  address, on your own machine (never on an ASF machine), published on a key server
+  (keys.openpgp.org), and in the `KEYS` files: in this repository, and in the distribution
+  directory, https://dist.apache.org/repos/dist/dev/unomi/KEYS and
+  https://dist.apache.org/repos/dist/release/unomi/KEYS (the one voters and users check, served as
+  https://downloads.apache.org/unomi/KEYS). See https://infra.apache.org/release-signing.html and
+  https://unomi.apache.org/contribute/release-guide.html
 - You can publish to npm: an account on https://www.npmjs.com/, added as a maintainer of
   `apache-unomi-tracker` (ask on dev@unomi.apache.org), and `npm login`.
 - The checks pass on the commit to release:
@@ -72,8 +81,10 @@ The release candidate
 The vote
 --------
 Send the vote to dev@unomi.apache.org; it lasts at least 72 hours, and needs at least three +1
-votes from PMC members, and more +1 than -1 votes
-(https://unomi.apache.org/contribute/release-guide.html). For example:
+votes from PMC members (binding), and more binding +1 than -1 votes
+(https://www.apache.org/legal/release-policy.html#release-approval). Before a +1, voters download
+the package to their own machine, check its signature and checksum, its licensing, and build and
+test it there. For example:
 
 ```
 Subject: [VOTE] Release Apache Unomi tracker X.Y.Z
@@ -92,9 +103,13 @@ https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/X.Y.Z/
 
 Tag: https://github.com/apache/unomi-tracker/releases/tag/vX.Y.Z (commit <sha>)
 
-Signing keys: https://github.com/apache/unomi-tracker/blob/vX.Y.Z/KEYS
+Signing keys: https://downloads.apache.org/unomi/KEYS
 
-To check the package: untar it, then yarn install --frozen-lockfile, yarn test, and
+To check the package, on your own machine:
+  gpg --import KEYS
+  gpg --verify unomi-tracker-X.Y.Z.tar.gz.asc unomi-tracker-X.Y.Z.tar.gz
+  shasum -a 512 -c unomi-tracker-X.Y.Z.tar.gz.sha512
+then untar it, check LICENSE and NOTICE, and run yarn install --frozen-lockfile, yarn test and
 npm pack --dry-run. The tests against Unomi servers need Docker: yarn test:servers.
 
 The vote is open for at least 72 hours.
@@ -107,14 +122,19 @@ Thanks,
 <name>
 ```
 
-Send the result to the same list, with `[RESULT][VOTE]` in the subject, and the votes counted.
+Send the result to the same list, with `[RESULT][VOTE]` in the subject, and the votes counted
+(binding and non-binding). If the vote fails, delete the tag, fix the problems, and start again with
+a new release candidate.
 
 After the vote
 --------------
-- Move https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/X.Y.Z to
-  https://dist.apache.org/repos/dist/release/unomi/unomi-tracker/X.Y.Z, and remove the previous
-  release of the same line from `dist/release` (it stays in the archive).
-- In JIRA, mark `unomi-tracker-X.Y.Z` as released, with the date.
+- Move the release: `svn mv https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker/X.Y.Z
+  https://dist.apache.org/repos/dist/release/unomi/unomi-tracker/X.Y.Z -m "Apache Unomi tracker X.Y.Z
+  release"` (a PMC member does it). Then remove the previous release of the same line from
+  `dist/release`: it stays on https://archive.apache.org/dist/unomi/unomi-tracker/, and
+  `dist/release` keeps only the latest release of each line still maintained.
+- In JIRA, mark `unomi-tracker-X.Y.Z` as released, with the date, and record the release on
+  https://reporter.apache.org/addrelease.html?unomi
 - Publish to npm, from the released package:
   ```shell
   curl -O https://dist.apache.org/repos/dist/release/unomi/unomi-tracker/X.Y.Z/unomi-tracker-X.Y.Z.tar.gz
@@ -125,8 +145,16 @@ After the vote
   `npm publish` builds `dist` from the released sources first (the `prepare` script), so the
   dependencies must be installed. For a 1.x release once 2.x is published, use
   `npm publish --tag latest-1`, so that `npm install apache-unomi-tracker` keeps installing 2.x.
-- Announce the release on dev@unomi.apache.org and announce@apache.org, from your apache.org
-  address.
+- Wait at least one hour after the move, so that https://downloads.apache.org has the release,
+  then add it to the Unomi download page (https://unomi.apache.org/download.html, in the
+  `unomi-site` repository): the source package through
+  `https://www.apache.org/dyn/closer.lua/unomi/unomi-tracker/X.Y.Z/unomi-tracker-X.Y.Z.tar.gz`, its
+  signature and checksum on `https://downloads.apache.org/unomi/unomi-tracker/X.Y.Z/`, and the KEYS
+  link. Remove the previous release of the same line from the page, or point it to the archive.
+- Then announce the release on dev@unomi.apache.org, user@unomi.apache.org and announce@apache.org,
+  from your apache.org address (announce@ only accepts that): a short description of the tracker,
+  what the release brings, and a link to the download page. Signing the email with your PGP key is
+  recommended.
 - Update the tracker that Unomi bundles (`extensions/web-tracker/wab/package.json` in
   https://github.com/apache/unomi) to the released version.
 - Set the next version in `package.json`, for example `2.1.0`.
