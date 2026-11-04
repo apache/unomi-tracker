@@ -149,11 +149,12 @@ After the vote
   dependencies must be installed. For a 1.x release once 2.x is published, use
   `npm publish --tag latest-1`, so that `npm install apache-unomi-tracker` keeps installing 2.x.
 - Wait at least one hour after the move, so that https://downloads.apache.org has the release,
-  then add it to the Unomi download page (https://unomi.apache.org/download.html, in the
-  `unomi-site` repository): the source package through
+  then update the Unomi download page (https://unomi.apache.org/download.html): in the
+  `unomi-site` repository, set `tracker.latest` (version, date, JIRA version id) in
+  `src/main/webapp/_data/unomi.yml`. The page then links to the source package through
   `https://www.apache.org/dyn/closer.lua/unomi/unomi-tracker/X.Y.Z/unomi-tracker-X.Y.Z.tar.gz`, its
-  signature and checksum on `https://downloads.apache.org/unomi/unomi-tracker/X.Y.Z/`, and the KEYS
-  link. Remove the previous release of the same line from the page, or point it to the archive.
+  signature and checksum on `https://downloads.apache.org/unomi/unomi-tracker/X.Y.Z/`, and KEYS;
+  older releases are on the archive.
 - Then announce the release on dev@unomi.apache.org, user@unomi.apache.org and announce@apache.org,
   from your apache.org address (announce@ only accepts that): a short description of the tracker,
   what the release brings, and a link to the download page. Signing the email with your PGP key is
