@@ -48,7 +48,7 @@ const only = onlyArg !== -1 ? args[onlyArg + 1].toLowerCase() : null;
 
 // --- Simulated Unomi -------------------------------------------------------------------------
 
-const unomi = { mode: 'answer', delayMs: 0, events: [] };
+const unomi = { mode: 'answer', delayMs: 0, events: [], requests: [] };
 
 function corsHeaders(request) {
     return {
@@ -68,6 +68,7 @@ const unomiServer = http.createServer((request, response) => {
     request.on('data', chunk => body += chunk);
     request.on('end', () => {
         const url = new URL(request.url, UNOMI);
+        unomi.requests.push(request.method + ' ' + url.pathname + (url.pathname === '/eventcollector' ? ' (' + unomi.mode + ')' : ''));
         if (url.pathname === '/context.json') {
             response.writeHead(200, Object.assign({ 'Content-Type': 'application/json' }, corsHeaders(request)));
             response.end(JSON.stringify({
@@ -105,6 +106,7 @@ function setUnomi(mode, delayMs = 0) {
     unomi.mode = mode;
     unomi.delayMs = delayMs;
     unomi.events = [];
+    unomi.requests = [];
 }
 
 // --- WebDriver ---------------------------------------------------------------------------------
@@ -184,6 +186,15 @@ async function openPage(params) {
     if (!ready) {
         throw new Error('The test page did not load: at ' + await safari.url());
     }
+    // Keep what the tracker logs from now on, to explain a failure
+    await safari.run(`window.trackerLogs = [];
+        ['debug', 'info', 'log', 'warn', 'error'].forEach(level => {
+            const original = console[level];
+            console[level] = function () {
+                window.trackerLogs.push(level + ': ' + Array.prototype.join.call(arguments, ' '));
+                return original.apply(console, arguments);
+            };
+        });`);
     return safari.runAsync('const done = arguments[arguments.length - 1]; window.trackerTest.context.then(done);');
 }
 
@@ -365,6 +376,17 @@ async function main() {
             }
             failed += result.ok ? 0 : 1;
             console.log((result.ok ? 'PASS ' : 'FAIL ') + check.question + '\n     ' + result.details);
+            if (!result.ok) {
+                // What happened, to tell a tracker problem from a test or browser one
+                console.log('     Unomi got: ' + (unomi.requests.join(', ') || 'nothing'));
+                try {
+                    console.log('     page: ' + await safari.url());
+                    const logs = await safari.run('return window.trackerLogs || null;');
+                    console.log('     tracker logs: ' + (logs ? logs.filter(line => line.includes('[WEM]')).join(' | ') || 'none' : 'not on this page (it was left)'));
+                } catch (e) {
+                    console.log('     page: unavailable (' + e.message + ')');
+                }
+            }
         }
         console.log('\n' + (selected.length - failed) + ' of ' + selected.length + ' passed');
         process.exitCode = failed ? 1 : 0;
