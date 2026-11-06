@@ -65,12 +65,13 @@ Before the release
 The release candidate
 ---------------------
 - `package.json` has the version `X.Y.Z`.
-- Tag and push: `git tag -s vX.Y.Z -m 'Release X.Y.Z'` (signed with your GPG key), then
-  `git push origin vX.Y.Z`.
+- Tag and push: `git tag -s -u <your key id> vX.Y.Z -m 'Release X.Y.Z'`, then
+  `git push origin vX.Y.Z`. Give your Apache key explicitly: without `-u`, git signs with
+  `user.signingkey`, which can be another key (for example the one that signs your commits).
 - The source package, from the tag:
   ```shell
   git archive --format=tar.gz --prefix=unomi-tracker-X.Y.Z/ -o unomi-tracker-X.Y.Z.tar.gz vX.Y.Z
-  gpg -ab unomi-tracker-X.Y.Z.tar.gz
+  gpg -ab -u <your key id> unomi-tracker-X.Y.Z.tar.gz
   gpg --verify unomi-tracker-X.Y.Z.tar.gz.asc unomi-tracker-X.Y.Z.tar.gz
   shasum -a 512 unomi-tracker-X.Y.Z.tar.gz > unomi-tracker-X.Y.Z.tar.gz.sha512
   ```
