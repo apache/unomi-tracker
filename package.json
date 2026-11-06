@@ -39,7 +39,7 @@
     "eslint": "^8.23.0",
     "eslint-plugin-json": "^3.1.0",
     "rollup": "^2.79.0",
-    "rollup-plugin-license": "^2.8.1",
+    "rollup-plugin-license": "^3.7.1",
     "typescript": "^5.8.2"
   },
   "dependencies": {
