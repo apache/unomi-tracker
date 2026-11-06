@@ -29,10 +29,11 @@ Each release has a JIRA version, `unomi-tracker-X.Y.Z`, a tag for each release c
 both fix versions, and a pull request on each branch. Below, `X.Y.Z` is the version being
 released, for example `2.0.0`.
 
-`scripts/release.sh` runs the checks and steps below; each one that others see (`git push`, `svn`,
-`npm publish`) asks first, and `--dry-run` skips them. Its files go to `target/release/`. It needs
-`git`, `gpg`, `node`, `yarn`, `npm`, `curl`, `svn` and `java` (for Apache RAT), and `gh` for the CI
-check. The steps it does not cover are said below.
+`scripts/release.sh` runs the checks and steps below, on macOS or Linux; each one that others see
+(`git push`, `svn`, `npm publish`) asks first, and `--dry-run` skips them. Its files go to
+`target/release/`. It needs `bash`, `git`, `gpg`, `node`, `yarn`, `npm`, `curl`, `svn`, `java` (for
+Apache RAT), `shasum` or `sha512sum`, and `gh` for the CI check. The steps it does not cover are
+said below. The packages it builds are the same on macOS and Linux, with Node 20, 22 or 24.
 
 | Stage | Command |
 |---|---|
@@ -151,6 +152,7 @@ Or by hand:
   gpg --verify unomi-tracker-X.Y.Z.tar.gz.asc unomi-tracker-X.Y.Z.tar.gz
   gpg --verify apache-unomi-tracker-X.Y.Z.tgz.asc apache-unomi-tracker-X.Y.Z.tgz
   shasum -a 512 -c unomi-tracker-X.Y.Z.tar.gz.sha512 apache-unomi-tracker-X.Y.Z.tgz.sha512
+(or sha512sum -c, on Linux without shasum)
 then untar the source package, check LICENSE and NOTICE, and run yarn install --frozen-lockfile,
 yarn test and npm pack: the npm package it builds has the same checksum as the one above. The tests
 against Unomi servers need Docker: yarn test:servers.

@@ -40,7 +40,8 @@ set -euo pipefail
 
 DIST_DEV=https://dist.apache.org/repos/dist/dev/unomi/unomi-tracker
 DIST_RELEASE=https://dist.apache.org/repos/dist/release/unomi/unomi-tracker
-KEYS_URL=https://downloads.apache.org/unomi/KEYS
+# The KEYS voters check signatures with (RELEASE_KEYS_URL gives another, for tests: file:///...)
+KEYS_URL=${RELEASE_KEYS_URL:-https://downloads.apache.org/unomi/KEYS}
 JIRA=https://issues.apache.org/jira
 JIRA_PROJECT_ID=12319220
 RAT_VERSION=0.18
@@ -65,7 +66,24 @@ fail() { FAILURES+=("$*"); printf '   FAILED: %s\n' "$*"; }
 warn() { WARNINGS+=("$*"); printf '   WARNING: %s\n' "$*"; }
 skip() { SKIPPED+=("$*"); printf '   not run: %s\n' "$*"; }
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
-need() { for tool in "$@"; do command -v "$tool" >/dev/null || die "$tool is needed"; done; }
+need() {
+    local tool
+    for tool in "$@"; do
+        case "$tool" in
+            sha512) command -v shasum >/dev/null || command -v sha512sum >/dev/null || die "shasum or sha512sum is needed" ;;
+            *) command -v "$tool" >/dev/null || die "$tool is needed" ;;
+        esac
+    done
+}
+
+# SHA-512 with shasum (macOS, and Linux with Perl) or sha512sum (GNU coreutils): same output, same -c
+sha512() {
+    if command -v shasum >/dev/null; then
+        shasum -a 512 "$@"
+    else
+        sha512sum "$@"
+    fi
+}
 
 cleanup() {
     for dir in "${TEMP_DIRS[@]+"${TEMP_DIRS[@]}"}"; do
@@ -141,7 +159,7 @@ check_signature() {
 
 check_checksum() {
     local file=$1
-    if (cd "$(dirname "$file")" && shasum -a 512 -c "$(basename "$file").sha512" >/dev/null 2>&1); then
+    if (cd "$(dirname "$file")" && sha512 -c "$(basename "$file").sha512" >/dev/null 2>&1); then
         ok "$(basename "$file"): SHA-512 checksum"
     else
         fail "$(basename "$file"): the SHA-512 checksum does not match"
@@ -340,7 +358,7 @@ check_ci() {
 cmd_check() {
     local version=$1
     check_version "$version"
-    need git gpg node yarn npm curl shasum
+    need git gpg node yarn npm curl sha512 cmp
     [ -n "$KEY" ] || die "give your signing key: --key <id>"
     cd "$ROOT"
 
@@ -416,7 +434,7 @@ cmd_candidate() {
     local version=$1 rc=$2
     check_version "$version"
     check_rc "$rc"
-    need git gpg node yarn npm curl shasum svn
+    need git gpg node yarn npm curl sha512 cmp svn
     [ -n "$KEY" ] || die "give your signing key: --key <id>"
     cd "$ROOT"
     local tag="v$version-rc$rc" work="$ROOT/target/release/$version-rc$rc"
@@ -451,7 +469,7 @@ cmd_candidate() {
     step "Signatures and checksums"
     local file
     for file in "unomi-tracker-$version.tar.gz" "$NPM_PACKAGE-$version.tgz"; do
-        (cd "$work/stage" && gpg --batch --yes --armor --detach-sign -u "$KEY" "$file" && shasum -a 512 "$file" > "$file.sha512")
+        (cd "$work/stage" && gpg --batch --yes --armor --detach-sign -u "$KEY" "$file" && sha512 "$file" > "$file.sha512")
     done
     local home keys
     keys=$(temp_dir)/KEYS
@@ -514,6 +532,7 @@ Or by hand:
   gpg --verify unomi-tracker-$version.tar.gz.asc unomi-tracker-$version.tar.gz
   gpg --verify $NPM_PACKAGE-$version.tgz.asc $NPM_PACKAGE-$version.tgz
   shasum -a 512 -c unomi-tracker-$version.tar.gz.sha512 $NPM_PACKAGE-$version.tgz.sha512
+(or sha512sum -c, on Linux without shasum)
 then untar the source package, check LICENSE and NOTICE, and run yarn install --frozen-lockfile,
 yarn test and npm pack: the npm package it builds has the same checksum as the one above.
 
@@ -534,7 +553,7 @@ cmd_verify() {
     local version=$1 rc=$2
     check_version "$version"
     check_rc "$rc"
-    need gpg node yarn npm curl shasum tar
+    need gpg node yarn npm curl sha512 cmp tar
     local files
     if [ -n "$DIR" ]; then
         files=$(cd "$DIR" && pwd)
@@ -570,7 +589,7 @@ cmd_publish() {
     local version=$1 rc=$2
     check_version "$version"
     check_rc "$rc"
-    need git gpg node npm curl shasum svn
+    need git gpg node npm curl sha512 cmp svn
     [ -n "$KEY" ] || die "give your signing key: --key <id>"
     cd "$ROOT"
     local rc_tag="v$version-rc$rc" tag="v$version" work="$ROOT/target/release/$version"
