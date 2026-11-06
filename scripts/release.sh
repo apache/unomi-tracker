@@ -18,20 +18,25 @@
 #
 ################################################################################
 #
-# The checks and steps of RELEASE.md, as commands:
+# The checks and steps of RELEASE.md, as commands, in this order:
 #
 #   scripts/release.sh check     X.Y.Z --key <id> [--servers] [--safari]
-#       The checks before a release, on this checkout.
-#   scripts/release.sh candidate X.Y.Z N --key <id> [--dry-run]
-#       Release candidate N: tag vX.Y.Z-rcN, source and npm packages, signed, checked as voters
-#       will, staged in dist/dev, and the vote email.
+#       The checks before a release, on this checkout (candidate runs them too).
+#   scripts/release.sh candidate X.Y.Z N --key <id> [--servers] [--safari] [--dry-run]
+#       Release candidate N: the checks, the source and npm packages built from HEAD, signed and
+#       checked as voters will, then the tag vX.Y.Z-rcN on that commit, the files staged in
+#       dist/dev, and the vote email. Run again after a failure, it goes on where it stopped.
 #   scripts/release.sh verify    X.Y.Z N [--dir <folder>] [--servers]
 #       What a voter checks, on the staged candidate (or on the files in <folder>).
-#   scripts/release.sh publish   X.Y.Z N --key <id> [--dry-run]
-#       After the vote: tag vX.Y.Z, move to dist/release, publish the voted npm package, and the
-#       announcement email.
+#   scripts/release.sh publish   X.Y.Z N --key <id> [--plus <n> --minus <n>] [--dry-run]
+#       After the vote: checks it lasted 72 hours and passed (the binding votes, asked), the result
+#       email, the tag vX.Y.Z, the move to dist/release, the voted npm package published as it is
+#       and compared with what npm serves, and the announcement email.
+#   scripts/release.sh finish    X.Y.Z [--dry-run]
+#       Once downloads.apache.org has the release, the download page links to it, and JIRA has it
+#       released: removes the previous release of the line from dist/release, and what is left.
 #   scripts/release.sh abandon   X.Y.Z N [--dry-run]
-#       After a failed vote: remove the candidate from dist/dev (its tag stays).
+#       After a failed vote: removes the candidate from dist/dev (its tag stays).
 #
 # Each step that is seen by others (git push, svn, npm publish) asks first; --dry-run skips them.
 # The files go to target/release/X.Y.Z-rcN/.
@@ -55,6 +60,8 @@ KEY=
 SERVERS=0
 SAFARI=0
 DIR=
+PLUS=
+MINUS=
 FAILURES=()
 WARNINGS=()
 SKIPPED=()
@@ -355,28 +362,72 @@ check_ci() {
     fi
 }
 
-cmd_check() {
+# The latest release candidate number of a version, from the tags here and on origin (0 if none)
+last_rc() {
     local version=$1
-    check_version "$version"
-    need git gpg node yarn npm curl sha512 cmp
-    [ -n "$KEY" ] || die "give your signing key: --key <id>"
-    cd "$ROOT"
+    { git tag -l "v$version-rc*"; git ls-remote --tags origin "refs/tags/v$version-rc*" 2>/dev/null | awk '{ print $2 }'; } |
+        sed -n "s#^\(refs/tags/\)\{0,1\}v$version-rc\([0-9]*\)\(\^{}\)\{0,1\}\$#\2#p" | sort -n | tail -1 | grep . || echo 0
+}
 
+# The release candidate folders of a version in dist/dev
+staged_rcs() {
+    svn ls "$DIST_DEV" 2>/dev/null | sed -n "s#^$1-rc\([0-9]*\)/\$#\1#p" | tr '\n' ' '
+}
+
+# Hours since a date (ISO 8601), with Node rather than date, which differs between macOS and Linux
+hours_since() {
+    node -e 'console.log(Math.floor((Date.now() - Date.parse(process.argv[1])) / 3600000))' "$1"
+}
+
+clock_in() {
+    node -e 'const d = new Date(Date.now() + Number(process.argv[1]) * 60000); console.log(d.toTimeString().slice(0, 5))' "$1"
+}
+
+# npm's integrity of a tarball: sha512-<base64>
+npm_integrity() {
+    node -e 'const c = require("crypto"), f = require("fs"); console.log("sha512-" + c.createHash("sha512").update(f.readFileSync(process.argv[1])).digest("base64"))' "$1"
+}
+
+# A tag is signed by a key of the KEYS
+check_tag_signature() {
+    local home=$1 tag=$2
+    if GNUPGHOME=$home git tag -v "$tag" >/dev/null 2>&1; then
+        ok "the tag $tag is signed by a key of the KEYS"
+    else
+        fail "the tag $tag is not signed by a key of the KEYS"
+    fi
+}
+
+keys_from_url() {
+    local keys
+    keys=$(temp_dir)/KEYS
+    curl -fsSL -o "$keys" "$KEYS_URL" || die "could not download $KEYS_URL"
+    keys_keyring "$keys"
+}
+
+# The checks before a release, on this checkout; the failures are counted, not reported
+run_checks() {
+    local version=$1
     step "The checkout"
-    local branch sha
+    local branch sha major
     branch=$(git rev-parse --abbrev-ref HEAD)
     sha=$(git rev-parse HEAD)
+    major=${version%%.*}
     [ -z "$(git status --porcelain)" ] && ok "no uncommitted changes" || fail "there are uncommitted changes"
     git fetch --quiet origin
     case "$branch" in
         main | 1_x)
-            [ "$sha" = "$(git rev-parse "origin/$branch")" ] && ok "$branch is up to date with origin/$branch" || fail "$branch is not the same as origin/$branch"
+            [ "$sha" = "$(git rev-parse "origin/$branch")" ] && ok "$branch is up to date with origin/$branch" || fail "$branch is not the same as origin/$branch: push it, or pull"
             ;;
         *) fail "releases are made from main or 1_x, not $branch" ;;
     esac
+    case "$branch:$major" in
+        1_x:1 | main:[2-9] | main:[1-9][0-9]) ok "$version is a release of the $branch line" ;;
+        main:* | 1_x:*) fail "$version is not a release of the $branch line (main: 2.x and later, 1_x: 1.x)" ;;
+    esac
     [ "$(json j.version < package.json)" = "$version" ] && ok "package.json has the version $version" || fail "package.json does not have the version $version"
     if git rev-parse -q --verify "refs/tags/v$version" >/dev/null || git ls-remote --exit-code --tags origin "v$version" >/dev/null 2>&1; then
-        fail "the tag v$version exists already"
+        fail "the tag v$version exists already: $version is released"
     fi
 
     step "Release notes and licensing"
@@ -413,6 +464,7 @@ cmd_check() {
     check_ci "$sha"
 
     step "Build and tests"
+    mkdir -p "$ROOT/target"
     if yarn install --frozen-lockfile --silent >/dev/null 2>&1; then ok "yarn install --frozen-lockfile"; else fail "yarn install --frozen-lockfile"; fi
     if yarn -s lint >/dev/null 2>&1; then ok "yarn lint"; else fail "yarn lint"; fi
     if yarn -s test >/dev/null 2>&1; then ok "yarn test"; else fail "yarn test"; fi
@@ -427,6 +479,15 @@ cmd_check() {
     else
         skip "the Safari checks (--safari, on a Mac with Safari visible)"
     fi
+}
+
+cmd_check() {
+    local version=$1
+    check_version "$version"
+    need git gpg node yarn npm curl sha512 cmp java
+    [ -n "$KEY" ] || die "give your signing key: --key <id>"
+    cd "$ROOT"
+    run_checks "$version"
     summary
 }
 
@@ -434,58 +495,86 @@ cmd_candidate() {
     local version=$1 rc=$2
     check_version "$version"
     check_rc "$rc"
-    need git gpg node yarn npm curl sha512 cmp svn
+    need git gpg node yarn npm curl sha512 cmp svn java
     [ -n "$KEY" ] || die "give your signing key: --key <id>"
     cd "$ROOT"
-    local tag="v$version-rc$rc" work="$ROOT/target/release/$version-rc$rc"
-    git rev-parse -q --verify "refs/tags/$tag" >/dev/null && die "the tag $tag exists already: use the next candidate number"
-    [ -z "$(git status --porcelain)" ] || die "there are uncommitted changes"
-    [ "$(json j.version < package.json)" = "$version" ] || die "package.json does not have the version $version"
+    local tag="v$version-rc$rc" work="$ROOT/target/release/$version-rc$rc" sha
+    sha=$(git rev-parse HEAD)
 
-    step "Tag $tag"
-    local ref=$tag
-    if [ "$DRY_RUN" = 1 ]; then
-        printf '   dry run: no tag, the packages are built from HEAD\n'
-        ref=HEAD
+    step "Release candidate $rc of $version"
+    git fetch --quiet origin --tags
+    local resume=0 last staged
+    if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+        [ "$(git rev-parse "$tag^{commit}")" = "$sha" ] || die "the tag $tag exists, on another commit than HEAD: use the next candidate number, $(( $(last_rc "$version") + 1 ))"
+        resume=1
+        ok "the tag $tag exists, on HEAD: going on from where the last run stopped"
     else
-        git tag -s -u "$KEY" "$tag" -m "Release candidate $rc of $version"
-        git tag -v "$tag" >/dev/null 2>&1 && ok "signed tag $tag on $(git rev-parse --short "$tag^{commit}")" || die "the tag $tag does not verify"
+        last=$(last_rc "$version")
+        [ "$rc" = "$((last + 1))" ] || die "the next release candidate of $version is $((last + 1)), not $rc"
+        ok "$rc is the next release candidate of $version"
     fi
-    local sha
-    sha=$(git rev-parse "$ref^{commit}")
+    staged=$(staged_rcs "$version")
+    for other in $staged; do
+        if [ "$other" = "$rc" ]; then
+            die "release candidate $rc is already staged in $DIST_DEV/$version-rc$rc/: check it with scripts/release.sh verify $version $rc"
+        fi
+        die "release candidate $other of $version is still in dist/dev: after its vote, run scripts/release.sh abandon $version $other (or publish it)"
+    done
+    ok "no other release candidate of $version in dist/dev"
 
-    step "Source package and npm package"
+    run_checks "$version"
+    if [ ${#FAILURES[@]} -gt 0 ]; then
+        [ "$DRY_RUN" = 1 ] || summary
+        printf '\n   dry run: going on despite the failures above, to show the next steps\n'
+    fi
+
+    step "Source package and npm package, from $sha"
     rm -rf "$work"
     mkdir -p "$work/stage"
     local source="$work/stage/unomi-tracker-$version.tar.gz"
-    git archive --format=tar.gz --prefix="unomi-tracker-$version/" -o "$source" "$ref"
-    ok "unomi-tracker-$version.tar.gz, from $ref ($sha)"
+    git archive --format=tar.gz --prefix="unomi-tracker-$version/" -o "$source" "$sha"
+    ok "unomi-tracker-$version.tar.gz"
     BUILT_NPM_PACKAGE=
+    local before=${#FAILURES[@]}
     check_source_package "$version" "$source"
-    [ ${#FAILURES[@]} -eq 0 ] || summary
+    [ ${#FAILURES[@]} -eq "$before" ] || summary
     cp "$BUILT_NPM_PACKAGE" "$work/stage/"
     ok "$NPM_PACKAGE-$version.tgz, built from the source package"
 
     step "Signatures and checksums"
-    local file
+    local file home
     for file in "unomi-tracker-$version.tar.gz" "$NPM_PACKAGE-$version.tgz"; do
         (cd "$work/stage" && gpg --batch --yes --armor --detach-sign -u "$KEY" "$file" && sha512 "$file" > "$file.sha512")
     done
-    local home keys
-    keys=$(temp_dir)/KEYS
-    curl -fsSL -o "$keys" "$KEYS_URL" || die "could not download $KEYS_URL"
-    home=$(keys_keyring "$keys")
+    home=$(keys_from_url)
     for file in "unomi-tracker-$version.tar.gz" "$NPM_PACKAGE-$version.tgz"; do
         check_signature "$home" "$work/stage/$file"
         check_checksum "$work/stage/$file"
     done
-    [ ${#FAILURES[@]} -eq 0 ] || summary
+    [ ${#FAILURES[@]} -eq "$before" ] || summary
 
-    step "Publish the candidate"
-    if confirm "Push the tag $tag to origin?"; then
+    step "Tag $tag"
+    if [ "$resume" = 1 ]; then
+        ok "$tag exists"
+    elif [ "$DRY_RUN" = 1 ]; then
+        printf '   dry run, skipped: git tag -s -u %s %s %s\n' "$KEY" "$tag" "$sha"
+    else
+        # Tagged once the packages pass, on the commit they were built from
+        git tag -s -u "$KEY" "$tag" "$sha" -m "Release candidate $rc of $version"
+        ok "signed tag $tag on $sha"
+    fi
+    if [ "$DRY_RUN" = 0 ]; then
+        check_tag_signature "$home" "$tag"
+        [ ${#FAILURES[@]} -eq 0 ] || summary
+    fi
+    if git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
+        ok "$tag is on origin"
+    elif confirm "Push the tag $tag to origin?"; then
         git push origin "$tag"
         ok "pushed $tag"
     fi
+
+    step "Stage in dist/dev"
     if confirm "Upload the six files to $DIST_DEV/$version-rc$rc/?"; then
         svn import --no-auth-cache "$work/stage" "$DIST_DEV/$version-rc$rc" -m "Apache Unomi tracker $version, release candidate $rc (for the PMC vote)"
         ok "staged in $DIST_DEV/$version-rc$rc/"
@@ -494,9 +583,9 @@ cmd_candidate() {
     step "Vote email"
     local jira_id
     jira_id=$(jira_version_id "$version")
-    jira_id=${jira_id:-<version id>}
-    write_vote_email "$version" "$rc" "$sha" "$jira_id" > "$work/vote-email.txt"
-    ok "$work/vote-email.txt (add what the release brings, from CHANGES.md)"
+    write_vote_email "$version" "$rc" "$sha" "${jira_id:-<version id>}" > "$work/vote-email.txt"
+    ok "$work/vote-email.txt: add what the release brings, from CHANGES.md, and send it from your apache.org address"
+    printf '   the vote is open until at least %s (72 hours)\n' "$(node -e 'console.log(new Date(Date.now() + 72 * 3600000).toString().slice(0, 21))')"
     summary
 }
 
@@ -524,9 +613,10 @@ Signing keys: $KEYS_URL
 
 To check the packages, on your own machine, from a checkout of the tag:
   scripts/release.sh verify $version $rc
-It checks the signatures and checksums with the KEYS above, the licensing (LICENSE, NOTICE,
-headers, Apache RAT), builds and tests the source package, and checks that npm pack on it gives
-the npm package above, byte for byte. Add --servers for the tests against Unomi servers (Docker).
+It checks the signatures and checksums with the KEYS above, that the source package is the tag's
+content and the tag is signed, the licensing (LICENSE, NOTICE, headers, Apache RAT), builds and
+tests the source package, and checks that npm pack on it gives the npm package above, byte for
+byte. Add --servers for the tests against Unomi servers (Docker).
 Or by hand:
   gpg --import KEYS
   gpg --verify unomi-tracker-$version.tar.gz.asc unomi-tracker-$version.tar.gz
@@ -538,7 +628,8 @@ yarn test and npm pack: the npm package it builds has the same checksum as the o
 
 The npm package is the one published to npm after the vote.
 
-The vote is open for at least 72 hours.
+The vote is open for at least 72 hours, and passes with at least three binding +1 votes and more
+binding +1 than -1 votes.
 
 [ ] +1 Release these packages as Apache Unomi tracker $version
 [ ] +0 No opinion
@@ -553,7 +644,7 @@ cmd_verify() {
     local version=$1 rc=$2
     check_version "$version"
     check_rc "$rc"
-    need gpg node yarn npm curl sha512 cmp tar
+    need gpg node yarn npm curl sha512 cmp tar java
     local files
     if [ -n "$DIR" ]; then
         files=$(cd "$DIR" && pwd)
@@ -570,19 +661,51 @@ cmd_verify() {
     fi
 
     step "Signatures and checksums, with $KEYS_URL"
-    local keys home
-    keys=$(temp_dir)/KEYS
-    curl -fsSL -o "$keys" "$KEYS_URL" || die "could not download $KEYS_URL"
-    home=$(keys_keyring "$keys")
+    local home
+    home=$(keys_from_url)
     for file in "unomi-tracker-$version.tar.gz" "$NPM_PACKAGE-$version.tgz"; do
         check_signature "$home" "$files/$file"
         check_checksum "$files/$file"
     done
 
+    step "The tag v$version-rc$rc"
+    local tag="v$version-rc$rc"
+    if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+        git -C "$ROOT" fetch --quiet origin tag "$tag" 2>/dev/null || true
+    fi
+    if git -C "$ROOT" rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1; then
+        (cd "$ROOT" && check_tag_signature "$home" "$tag")
+        local from_tag from_package
+        from_tag=$(temp_dir)
+        from_package=$(temp_dir)
+        git -C "$ROOT" archive "$tag" | tar x -C "$from_tag"
+        tar xzf "$files/unomi-tracker-$version.tar.gz" -C "$from_package"
+        if diff -r -q "$from_tag" "$from_package/unomi-tracker-$version" >/dev/null; then
+            ok "the source package is the content of $tag"
+        else
+            fail "the source package is not the content of $tag:"
+            diff -r -q "$from_tag" "$from_package/unomi-tracker-$version" | head -10
+        fi
+    else
+        skip "the source package against the tag $tag (run this from a checkout of apache/unomi-tracker)"
+    fi
+
     step "Source package"
     check_source_package "$version" "$files/unomi-tracker-$version.tar.gz" "$files/$NPM_PACKAGE-$version.tgz"
     [ "$SERVERS" = 1 ] || skip "the tests against Unomi servers (--servers, needs Docker)"
     summary
+}
+
+# Asks for a number, or takes it from an option
+ask_number() {
+    local question=$1 value=$2 answer
+    if [ -n "$value" ]; then
+        echo "$value"
+        return
+    fi
+    read -r -p "   $question " answer
+    [[ $answer =~ ^[0-9]+$ ]] || die "a number is needed, not \"$answer\""
+    echo "$answer"
 }
 
 cmd_publish() {
@@ -595,8 +718,39 @@ cmd_publish() {
     local rc_tag="v$version-rc$rc" tag="v$version" work="$ROOT/target/release/$version"
     git fetch --quiet origin --tags
     git rev-parse -q --verify "refs/tags/$rc_tag" >/dev/null || die "there is no tag $rc_tag"
-    local sha
+    local sha home
     sha=$(git rev-parse "$rc_tag^{commit}")
+    home=$(keys_from_url)
+    mkdir -p "$work"
+
+    step "The vote on release candidate $rc"
+    check_tag_signature "$home" "$rc_tag"
+    local released=0
+    svn info "$DIST_RELEASE/$version" >/dev/null 2>&1 && released=1
+    if [ "$released" = 1 ]; then
+        ok "$version is in dist/release already: going on from where the last run stopped"
+    else
+        local staged_at hours plus minus
+        staged_at=$(svn info --show-item last-changed-date "$DIST_DEV/$version-rc$rc" 2>/dev/null) || die "release candidate $rc of $version is not in dist/dev"
+        hours=$(hours_since "$staged_at")
+        # The vote email goes out once the candidate is staged: 72 hours after the staging at least
+        [ "$hours" -ge 72 ] && ok "staged $hours hours ago (the vote lasts 72 hours at least)" || fail "staged $hours hours ago: the vote lasts at least 72 hours"
+        plus=$(ask_number "Binding +1 votes (PMC members, yours included)?" "$PLUS")
+        minus=$(ask_number "Binding -1 votes?" "$MINUS")
+        if [ "$plus" -ge 3 ] && [ "$plus" -gt "$minus" ]; then
+            ok "the vote passes: $plus binding +1, $minus binding -1"
+        else
+            fail "the vote does not pass: $plus binding +1, $minus binding -1 (at least three binding +1 and more +1 than -1 are needed); run scripts/release.sh abandon $version $rc"
+        fi
+        [ ${#FAILURES[@]} -eq 0 ] || summary
+        write_result_email "$version" "$rc" "$plus" "$minus" > "$work/result-email.txt"
+        ok "$work/result-email.txt: add the voters' names and the other votes, and send it in the vote thread"
+        if [ "$DRY_RUN" = 0 ]; then
+            local answer
+            read -r -p "   Is the result email sent? [y/N] " answer
+            [ "$answer" = y ] || [ "$answer" = Y ] || die "send the result email first, then run this again"
+        fi
+    fi
 
     step "Tag $tag on the commit of $rc_tag ($sha)"
     if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
@@ -607,78 +761,86 @@ cmd_publish() {
     else
         printf '   dry run, skipped: git tag -s -u %s %s %s\n' "$KEY" "$tag" "$sha"
     fi
-    if confirm "Push the tag $tag to origin?"; then
+    if git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
+        ok "$tag is on origin"
+    elif confirm "Push the tag $tag to origin?"; then
         git push origin "$tag"
         ok "pushed $tag"
     fi
 
     step "Move the candidate to dist/release (a PMC member does it)"
-    if svn info "$DIST_RELEASE/$version" >/dev/null 2>&1; then
+    if [ "$released" = 1 ]; then
         ok "$DIST_RELEASE/$version/ exists"
     elif confirm "svn mv $DIST_DEV/$version-rc$rc $DIST_RELEASE/$version?"; then
         svn mv "$DIST_DEV/$version-rc$rc" "$DIST_RELEASE/$version" -m "Apache Unomi tracker $version release"
         ok "moved to $DIST_RELEASE/$version/"
     fi
-    local moved_at
-    moved_at=$(date '+%H:%M')
 
     step "Publish the voted npm package"
     local from=$DIST_RELEASE/$version
     svn info "$from" >/dev/null 2>&1 || from=$DIST_DEV/$version-rc$rc
-    rm -rf "$work"
-    mkdir -p "$work"
     local file="$NPM_PACKAGE-$version.tgz" suffix
     for suffix in "" .asc .sha512; do
         curl -fsSL -o "$work/$file$suffix" "$from/$file$suffix" || die "could not download $from/$file$suffix"
     done
-    local keys home
-    keys=$(temp_dir)/KEYS
-    curl -fsSL -o "$keys" "$KEYS_URL" || die "could not download $KEYS_URL"
-    home=$(keys_keyring "$keys")
     check_signature "$home" "$work/$file"
     check_checksum "$work/$file"
     [ ${#FAILURES[@]} -eq 0 ] || summary
-    # A release of an older line than npm's latest keeps latest: 1.x is published as latest-1
-    local latest major tag_args=()
-    latest=$(npm view "$NPM_PACKAGE" dist-tags.latest 2>/dev/null || true)
-    major=${version%%.*}
-    if [ -n "$latest" ] && [ "$major" -lt "${latest%%.*}" ]; then
-        tag_args=(--tag "latest-$major")
-    fi
-    if confirm "npm publish ${tag_args[*]+${tag_args[*]} }$file (npm's latest is ${latest:-none})?"; then
-        npm publish "${tag_args[@]+"${tag_args[@]}"}" "$work/$file"
-        ok "published $NPM_PACKAGE@$version"
+    local integrity published
+    integrity=$(npm_integrity "$work/$file")
+    published=$(npm view "$NPM_PACKAGE@$version" dist.integrity 2>/dev/null || true)
+    if [ -n "$published" ]; then
+        [ "$published" = "$integrity" ] && ok "$NPM_PACKAGE@$version is on npm, and is the voted package" || fail "$NPM_PACKAGE@$version is on npm, but is not the voted package"
+    else
+        # A release of an older line than npm's latest keeps latest: 1.x is published as latest-1
+        local latest major tag_args=()
+        latest=$(npm view "$NPM_PACKAGE" dist-tags.latest 2>/dev/null || true)
+        major=${version%%.*}
+        if [ -n "$latest" ] && [ "$major" -lt "${latest%%.*}" ]; then
+            tag_args=(--tag "latest-$major")
+        fi
+        if confirm "npm publish ${tag_args[*]+${tag_args[*]} }$file (npm's latest is ${latest:-none})?"; then
+            npm publish "${tag_args[@]+"${tag_args[@]}"}" "$work/$file"
+            published=$(npm view "$NPM_PACKAGE@$version" dist.integrity 2>/dev/null || true)
+            [ "$published" = "$integrity" ] && ok "npm has $NPM_PACKAGE@$version, and it is the voted package" || fail "npm does not give the voted package for $NPM_PACKAGE@$version (integrity ${published:-none})"
+        fi
     fi
 
-    step "Announcement email"
+    step "Next"
     write_announcement "$version" > "$work/announce-email.txt"
-    ok "$work/announce-email.txt (add what the release brings, from CHANGES.md)"
-
-    local previous
-    previous=$(svn ls "$DIST_RELEASE" 2>/dev/null | sed 's#/$##' | grep -E "^$major\.[0-9]+\.[0-9]+$" | grep -vx "$version" | tr '\n' ' ' || true)
-    local remove="(none in dist/release)" old
-    if [ -n "$previous" ]; then
-        remove="svn rm"
-        for old in $previous; do remove="$remove $DIST_RELEASE/$old"; done
-        remove="$remove -m \"Archive Apache Unomi tracker ${previous% }\""
-    fi
+    ok "$work/announce-email.txt: add what the release brings, from CHANGES.md"
     JIRA_VERSION_ID=$(jira_version_id "$version")
     cat <<EOF
-
-== By hand, in this order
    1. JIRA: mark unomi-tracker-$version as released, dated today:
       $JIRA/projects/UNOMI/versions/${JIRA_VERSION_ID:-<version id>}
       and record the release on https://reporter.apache.org/addrelease.html?unomi
-   2. From $(date -v+1H '+%H:%M' 2>/dev/null || date -d '+1 hour' '+%H:%M'), one hour after the move ($moved_at), update the download page: in
-      unomi-site, src/main/webapp/_data/unomi.yml, tracker.latest: version $version,
-      date $(date '+%Y-%m-%d'), JIRA version id ${JIRA_VERSION_ID:-<version id>}.
-   3. Once the download page links to $version, remove the previous release of the line:
-      $remove
-   4. Send $work/announce-email.txt from your apache.org address.
-   5. Update the tracker that Unomi bundles (extensions/web-tracker/wab/package.json in apache/unomi).
-   6. Set the next version in package.json.
+   2. From $(clock_in 60) (one hour after the move, for downloads.apache.org), update the download
+      page: in unomi-site, src/main/webapp/_data/unomi.yml, tracker.latest: version $version, date
+      $(date '+%Y-%m-%d'), JIRA version id ${JIRA_VERSION_ID:-<version id>}; and publish the site.
+   3. Then: scripts/release.sh finish $version
 EOF
     summary
+}
+
+write_result_email() {
+    local version=$1 rc=$2 plus=$3 minus=$4
+    cat <<EOF
+To: dev@unomi.apache.org
+Subject: [RESULT][VOTE] Release Apache Unomi tracker $version (release candidate $rc)
+
+Hi all,
+
+The vote to release Apache Unomi tracker $version (release candidate $rc) passes, with:
+
+$plus binding +1: <names>
+<n> non-binding +1: <names>
+<n> +0: <names>
+$minus binding -1: <names>
+
+Thanks to everyone who checked the release candidate and voted. I will now publish the release.
+
+<name>
+EOF
 }
 
 write_announcement() {
@@ -704,17 +866,72 @@ Thanks to everyone who contributed to this release.
 EOF
 }
 
+cmd_finish() {
+    local version=$1
+    check_version "$version"
+    need curl node svn
+    local downloads="https://downloads.apache.org/unomi/unomi-tracker/$version" work="$ROOT/target/release/$version"
+
+    step "downloads.apache.org"
+    local file missing=0
+    for file in "unomi-tracker-$version.tar.gz" "unomi-tracker-$version.tar.gz.asc" "unomi-tracker-$version.tar.gz.sha512"; do
+        curl -fsI "$downloads/$file" >/dev/null 2>&1 || missing=1
+    done
+    [ "$missing" = 0 ] && ok "$downloads/ has the source package, its signature and checksum" || fail "$downloads/ does not have the release yet: it can take an hour after the move"
+
+    step "The download page"
+    if curl -fsSL https://unomi.apache.org/download.html 2>/dev/null | grep -q "unomi-tracker/$version/"; then
+        ok "https://unomi.apache.org/download.html links to $version"
+    else
+        fail "https://unomi.apache.org/download.html does not link to $version yet: update tracker.latest in unomi-site, and publish the site"
+    fi
+
+    step "JIRA"
+    local released
+    released=$(curl -fsSL "$JIRA/rest/api/2/project/UNOMI/versions" 2>/dev/null | json "(j.find(v => v.name === 'unomi-tracker-$version') || {}).released" 2>/dev/null || true)
+    [ "$released" = true ] && ok "unomi-tracker-$version is released in JIRA" || fail "unomi-tracker-$version is not marked as released in JIRA"
+    [ ${#FAILURES[@]} -eq 0 ] || summary
+
+    step "The previous release of the line, from dist/release (it stays on archive.apache.org)"
+    local major previous old
+    major=${version%%.*}
+    previous=$(svn ls "$DIST_RELEASE" 2>/dev/null | sed 's#/$##' | grep -E "^$major\.[0-9]+\.[0-9]+$" | grep -vx "$version" | tr '\n' ' ' || true)
+    if [ -z "$previous" ]; then
+        ok "none in dist/release"
+    else
+        local urls=()
+        for old in $previous; do urls+=("$DIST_RELEASE/$old"); done
+        if confirm "svn rm ${previous% }?"; then
+            svn rm "${urls[@]}" -m "Archive Apache Unomi tracker ${previous% }: $version is released"
+            ok "removed ${previous% }"
+        fi
+    fi
+
+    step "Announcement"
+    mkdir -p "$work"
+    [ -f "$work/announce-email.txt" ] || write_announcement "$version" > "$work/announce-email.txt"
+    cat <<EOF
+   1. Send $work/announce-email.txt from your apache.org address (announce@ only takes those);
+      signing it with your PGP key is recommended.
+   2. Record the release, if not done yet: https://reporter.apache.org/addrelease.html?unomi
+   3. Update the tracker that Unomi bundles (extensions/web-tracker/wab/package.json in apache/unomi).
+   4. Set the next version in package.json, for example $major.$(( $(echo "$version" | cut -d. -f2) + 1 )).0.
+EOF
+    summary
+}
+
 cmd_abandon() {
     local version=$1 rc=$2
     check_version "$version"
     check_rc "$rc"
     need svn
     step "Remove release candidate $rc of $version from dist/dev (its tag stays)"
+    svn info "$DIST_DEV/$version-rc$rc" >/dev/null 2>&1 || die "release candidate $rc of $version is not in dist/dev"
     if confirm "svn rm $DIST_DEV/$version-rc$rc?"; then
         svn rm "$DIST_DEV/$version-rc$rc" -m "Remove Apache Unomi tracker $version release candidate $rc: the vote did not pass"
         ok "removed"
     fi
-    printf '   next: fix the problems, then scripts/release.sh candidate %s %s\n' "$version" "$((rc + 1))"
+    printf '   next: send the result to the vote thread, fix the problems, then scripts/release.sh candidate %s %s\n' "$version" "$((rc + 1))"
 }
 
 usage() {
@@ -733,6 +950,8 @@ while [ $# -gt 0 ]; do
         --servers) SERVERS=1; shift ;;
         --safari) SAFARI=1; shift ;;
         --dir) DIR=${2:?--dir needs a folder}; shift 2 ;;
+        --plus) PLUS=${2:?--plus needs a number}; shift 2 ;;
+        --minus) MINUS=${2:?--minus needs a number}; shift 2 ;;
         -h | --help) usage ;;
         -*) die "unknown option $1" ;;
         *) args+=("$1"); shift ;;
@@ -745,6 +964,7 @@ case "$command" in
     candidate) [ $# -eq 2 ] || usage; cmd_candidate "$1" "$2" ;;
     verify) [ $# -eq 2 ] || usage; cmd_verify "$1" "$2" ;;
     publish) [ $# -eq 2 ] || usage; cmd_publish "$1" "$2" ;;
+    finish) [ $# -eq 1 ] || usage; cmd_finish "$1" ;;
     abandon) [ $# -eq 2 ] || usage; cmd_abandon "$1" "$2" ;;
     *) usage ;;
 esac

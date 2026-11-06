@@ -38,10 +38,18 @@ said below. The packages it builds are the same on macOS and Linux, with Node 20
 | Stage | Command |
 |---|---|
 | Before the release | `scripts/release.sh check X.Y.Z --key <id> [--servers] [--safari]` |
-| A release candidate | `scripts/release.sh candidate X.Y.Z N --key <id>` |
+| A release candidate | `scripts/release.sh candidate X.Y.Z N --key <id> [--servers] [--safari]` |
 | A voter's checks | `scripts/release.sh verify X.Y.Z N [--servers]` |
 | After the vote | `scripts/release.sh publish X.Y.Z N --key <id>` |
+| Once the download page links to it | `scripts/release.sh finish X.Y.Z` |
 | After a failed vote | `scripts/release.sh abandon X.Y.Z N` |
+
+Each command checks what the step before it should have done, and stops if it is not: `candidate`
+runs the checks of `check`, takes the next candidate number only, and only once the previous
+candidate has left `dist/dev`; it tags the commit its packages were built from once they pass, and
+run again after a failure, it goes on where it stopped. `publish` only goes on once the vote has
+lasted 72 hours and passed (it asks for the binding votes). `finish` only goes on once
+downloads.apache.org has the release, the download page links to it, and JIRA has it released.
 
 Before the release
 ------------------
@@ -89,7 +97,9 @@ The release candidate
 ---------------------
 Each release candidate has a number, `N`, from 1: `rcN` below.
 `scripts/release.sh candidate X.Y.Z N --key <id>` does all of this, checks the packages as
-`verify` does, and writes the vote email to `target/release/X.Y.Z-rcN/vote-email.txt`.
+`verify` does, and writes the vote email to `target/release/X.Y.Z-rcN/vote-email.txt`. `verify`
+also checks that the source package is the content of the tag, and that the tag is signed by a key
+of the KEYS.
 
 - `package.json` has the version `X.Y.Z`.
 - Tag and push the candidate: `git tag -s -u <your key id> vX.Y.Z-rcN -m 'Release candidate N of X.Y.Z'`,
@@ -176,10 +186,15 @@ problems, and start again with the next candidate, `rcN+1`. Keep the failed cand
 
 After the vote
 --------------
-`scripts/release.sh publish X.Y.Z N --key <id>` tags, moves, checks and publishes the npm package,
-writes the announcement to `target/release/X.Y.Z/announce-email.txt`, then lists what is left by
-hand: JIRA and reporter.apache.org, the download page, the previous release, the announcement.
-After a failed vote, `scripts/release.sh abandon X.Y.Z N` removes the candidate from `dist/dev`.
+`scripts/release.sh publish X.Y.Z N --key <id>` checks the vote (72 hours, and the binding votes it
+asks for), writes the result email to `target/release/X.Y.Z/result-email.txt`, tags, moves, checks
+and publishes the npm package, checks that npm serves the voted file, writes the announcement to
+`target/release/X.Y.Z/announce-email.txt`, and says what to do by hand: JIRA and
+reporter.apache.org, then the download page, from one hour after the move. Then
+`scripts/release.sh finish X.Y.Z` checks downloads.apache.org, the download page and JIRA, removes
+the previous release of the line from `dist/release`, and says what is left: the announcement, the
+tracker Unomi bundles, the next version. After a failed vote, `scripts/release.sh abandon X.Y.Z N`
+removes the candidate from `dist/dev`.
 
 - Tag the release on the commit of the candidate that passed, and push it:
   `git tag -s -u <your key id> vX.Y.Z vX.Y.Z-rcN^{commit} -m 'Release X.Y.Z'`, then
