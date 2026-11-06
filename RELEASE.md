@@ -29,8 +29,24 @@ Each release has a JIRA version, `unomi-tracker-X.Y.Z`, a tag for each release c
 both fix versions, and a pull request on each branch. Below, `X.Y.Z` is the version being
 released, for example `2.0.0`.
 
+`scripts/release.sh` runs the checks and steps below; each one that others see (`git push`, `svn`,
+`npm publish`) asks first, and `--dry-run` skips them. Its files go to `target/release/`. It needs
+`git`, `gpg`, `node`, `yarn`, `npm`, `curl`, `svn` and `java` (for Apache RAT), and `gh` for the CI
+check. The steps it does not cover are said below.
+
+| Stage | Command |
+|---|---|
+| Before the release | `scripts/release.sh check X.Y.Z --key <id> [--servers] [--safari]` |
+| A release candidate | `scripts/release.sh candidate X.Y.Z N --key <id>` |
+| A voter's checks | `scripts/release.sh verify X.Y.Z N [--servers]` |
+| After the vote | `scripts/release.sh publish X.Y.Z N --key <id>` |
+| After a failed vote | `scripts/release.sh abandon X.Y.Z N` |
+
 Before the release
 ------------------
+`scripts/release.sh check X.Y.Z --key <id>` checks all of this, except what `CHANGES.md` and the
+README say; `--servers` and `--safari` run the last two checks.
+
 - In JIRA, every ticket with the fix version `unomi-tracker-X.Y.Z` is resolved, or moved to a later
   version.
 - `CHANGES.md` has the release notes of `X.Y.Z`, and the README is up to date ("Upgrading from 1.x"
@@ -45,7 +61,7 @@ Before the release
 - Every source file has the ASF license header. This lists the files without it (the result must
   be empty):
   ```shell
-  git ls-files -- '*.js' '*.ts' '*.md' '*.html' '*.yml' '*.yaml' ':!:.github/*' | xargs grep -L "Licensed to the Apache Software Foundation"
+  git ls-files -- '*.js' '*.ts' '*.md' '*.html' '*.yml' '*.yaml' '*.sh' ':!:.github/*' | xargs grep -L "Licensed to the Apache Software Foundation"
   ```
   Apache RAT (https://creadur.apache.org/rat/) checks every file, also those of other types. With
   RAT 0.18, in a checkout or the extracted source package, this must report `Unapproved: 0`:
@@ -71,6 +87,8 @@ Before the release
 The release candidate
 ---------------------
 Each release candidate has a number, `N`, from 1: `rcN` below.
+`scripts/release.sh candidate X.Y.Z N --key <id>` does all of this, checks the packages as
+`verify` does, and writes the vote email to `target/release/X.Y.Z-rcN/vote-email.txt`.
 
 - `package.json` has the version `X.Y.Z`.
 - Tag and push the candidate: `git tag -s -u <your key id> vX.Y.Z-rcN -m 'Release candidate N of X.Y.Z'`,
@@ -98,7 +116,7 @@ Each release candidate has a number, `N`, from 1: `rcN` below.
 
 The vote
 --------
-Send the vote to dev@unomi.apache.org; it lasts at least 72 hours, and needs at least three +1
+Send the vote to dev@unomi.apache.org (`candidate` writes it; add what the release brings); it lasts at least 72 hours, and needs at least three +1
 votes from PMC members (binding), and more binding +1 than -1 votes
 (https://www.apache.org/legal/release-policy.html#release-approval). Before a +1, voters download
 the packages to their own machine, check their signatures and checksums, their licensing, and build
@@ -123,7 +141,12 @@ Tag: https://github.com/apache/unomi-tracker/releases/tag/vX.Y.Z-rcN (commit <sh
 
 Signing keys: https://downloads.apache.org/unomi/KEYS
 
-To check the packages, on your own machine:
+To check the packages, on your own machine, from a checkout of the tag:
+  scripts/release.sh verify X.Y.Z N
+It checks the signatures and checksums with the KEYS above, the licensing (LICENSE, NOTICE,
+headers, Apache RAT), builds and tests the source package, and checks that npm pack on it gives
+the npm package above, byte for byte. Add --servers for the tests against Unomi servers (Docker).
+Or by hand:
   gpg --import KEYS
   gpg --verify unomi-tracker-X.Y.Z.tar.gz.asc unomi-tracker-X.Y.Z.tar.gz
   gpg --verify apache-unomi-tracker-X.Y.Z.tgz.asc apache-unomi-tracker-X.Y.Z.tgz
@@ -151,6 +174,11 @@ problems, and start again with the next candidate, `rcN+1`. Keep the failed cand
 
 After the vote
 --------------
+`scripts/release.sh publish X.Y.Z N --key <id>` tags, moves, checks and publishes the npm package,
+writes the announcement to `target/release/X.Y.Z/announce-email.txt`, then lists what is left by
+hand: JIRA and reporter.apache.org, the download page, the previous release, the announcement.
+After a failed vote, `scripts/release.sh abandon X.Y.Z N` removes the candidate from `dist/dev`.
+
 - Tag the release on the commit of the candidate that passed, and push it:
   `git tag -s -u <your key id> vX.Y.Z vX.Y.Z-rcN^{commit} -m 'Release X.Y.Z'`, then
   `git push origin vX.Y.Z`.

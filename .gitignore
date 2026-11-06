@@ -282,3 +282,6 @@ test/servers/.cache/
 
 # LICENSE while npm pack uses LICENSE-binary (scripts/npm-license.js)
 /.LICENSE-source
+
+# Release work (scripts/release.sh)
+/target
