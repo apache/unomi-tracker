@@ -77,7 +77,8 @@ all of it are fixes.
 - The dependencies are updated within their major versions, which fixes the security advisories
   that did not need a major upgrade. `@babel/runtime`, whose helpers are part of the tracker that
   pages load, now requires 7.26.10 or later. `es6-crawler-detect`, also part of it, stays at 3.3.0;
-  the others are build tools.
+  the others are build tools. The build tool `rollup-plugin-license` moves to 3.7.1, for the
+  lodash and moment advisories; the build output is the same.
 - `dist` is no longer committed: it is built when the package is published, and when a project
   installs a commit of this repository (the `prepare` script, for development only).
 - The npm package's `LICENSE` now lists the third-party code its browser build bundles
