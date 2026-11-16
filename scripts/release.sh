@@ -23,15 +23,16 @@
 #   scripts/release.sh check     X.Y.Z --key <id> [--servers] [--safari]
 #       The checks before a release, on this checkout (candidate runs them too).
 #   scripts/release.sh candidate X.Y.Z N --key <id> [--servers] [--safari] [--dry-run]
-#       Release candidate N: the checks, the source and npm packages built from HEAD, signed and
-#       checked as voters will, then the tag vX.Y.Z-rcN on that commit, the files staged in
-#       dist/dev, and the vote email. Run again after a failure, it goes on where it stopped.
+#       Release candidate N: the checks, the source release and convenience npm package built from
+#       HEAD, signed and checked, then the tag vX.Y.Z-rcN on that commit, the files staged in
+#       dist/dev, and the vote email (vote is on the source). Run again after a failure, it goes on
+#       where it stopped.
 #   scripts/release.sh verify    X.Y.Z N [--dir <folder>] [--servers]
-#       What a voter checks, on the staged candidate (or on the files in <folder>).
+#       What a voter checks for a binding +1: the signed source (and useful rebuild checks).
 #   scripts/release.sh publish   X.Y.Z N --key <id> [--plus <n> --minus <n>] [--dry-run]
 #       After the vote: checks it lasted 72 hours and passed (the binding votes, asked), the result
-#       email, the tag vX.Y.Z, the move to dist/release, the voted npm package published as it is
-#       and compared with what npm serves, and the announcement email.
+#       email, the tag vX.Y.Z, the move to dist/release, the convenience npm package published as
+#       staged and compared with what npm serves, and the announcement email.
 #   scripts/release.sh finish    X.Y.Z [--dry-run]
 #       Once downloads.apache.org has the release, the download page links to it, and JIRA has it
 #       released: removes the previous release of the line from dist/release, and what is left.
@@ -272,9 +273,9 @@ check_source_package() {
     check_npm_package "$version" "$built" "$dir"
     if [ -n "$npm_package" ]; then
         if cmp -s "$built" "$npm_package"; then
-            ok "npm pack on the source package gives the staged npm package, byte for byte"
+            ok "npm pack on the source rebuilds the staged convenience package, byte for byte"
         else
-            fail "npm pack on the source package does not give the staged npm package: the build is not reproducible, or the npm package is not built from this source"
+            fail "npm pack on the source does not give the staged convenience package: the build is not reproducible, or the .tgz is not built from this source"
         fi
     fi
     BUILT_NPM_PACKAGE=$built
@@ -591,49 +592,62 @@ cmd_candidate() {
 
 write_vote_email() {
     local version=$1 rc=$2 sha=$3 jira_id=$4
+    # Vote is on the source release (ASF policy). Convenience binary is listed separately.
     cat <<EOF
 To: dev@unomi.apache.org
-Subject: [VOTE] Release Apache Unomi tracker $version (release candidate $rc)
+Subject: [VOTE] Apache Unomi tracker $version release (RC$rc)
 
 Hi all,
 
-I would like to release Apache Unomi tracker $version, the JavaScript tracker for Apache Unomi.
-<One or two sentences on what the release brings, from CHANGES.md.>
+I submit Apache Unomi tracker $version release candidate $rc to your vote.
+
+Apache Unomi tracker is the JavaScript library that websites use to send visitors' events to
+Apache Unomi and to personalize pages with its answers.
+
+<What the release brings, from CHANGES.md: a short list of major changes and why they matter.>
+
+Source release (what this vote approves), with signature and checksum:
+$DIST_DEV/$version-rc$rc/unomi-tracker-$version.tar.gz
+$DIST_DEV/$version-rc$rc/
+
+Git tag:
+v$version-rc$rc (commit $sha)
+https://github.com/apache/unomi-tracker/releases/tag/v$version-rc$rc
 
 Release notes:
 https://github.com/apache/unomi-tracker/blob/v$version-rc$rc/CHANGES.md
-JIRA: $JIRA/secure/ReleaseNote.jspa?projectId=$JIRA_PROJECT_ID&version=$jira_id
-
-Source package and npm package, with their signatures and checksums:
-$DIST_DEV/$version-rc$rc/
-
-Tag: https://github.com/apache/unomi-tracker/releases/tag/v$version-rc$rc (commit $sha)
+$JIRA/secure/ReleaseNote.jspa?projectId=$JIRA_PROJECT_ID&version=$jira_id
 
 Signing keys: $KEYS_URL
 
-To check the packages, on your own machine, from a checkout of the tag:
+Convenience binary (not subject to this vote; built from the source above with npm pack, for users
+who do not rebuild; published to npm after the source vote passes):
+$DIST_DEV/$version-rc$rc/$NPM_PACKAGE-$version.tgz
+
+To verify the source release, on your own machine, from a checkout of the tag:
   scripts/release.sh verify $version $rc
-It checks the signatures and checksums with the KEYS above, that the source package is the tag's
-content and the tag is signed, the licensing (LICENSE, NOTICE, headers, Apache RAT), builds and
-tests the source package, and checks that npm pack on it gives the npm package above, byte for
-byte. Add --servers for the tests against Unomi servers (Docker).
-Or by hand:
+It checks the source signature and checksum with the KEYS above, that the source package is the
+tag's content and the tag is signed, the licensing (LICENSE, NOTICE, headers, Apache RAT), builds
+and tests the source, and (optionally useful) that npm pack on that source rebuilds the staged
+convenience .tgz. Add --servers for the tests against Unomi servers (Docker).
+Or by hand (binding +1 requires at least the source steps):
   gpg --import KEYS
   gpg --verify unomi-tracker-$version.tar.gz.asc unomi-tracker-$version.tar.gz
-  gpg --verify $NPM_PACKAGE-$version.tgz.asc $NPM_PACKAGE-$version.tgz
-  shasum -a 512 -c unomi-tracker-$version.tar.gz.sha512 $NPM_PACKAGE-$version.tgz.sha512
+  shasum -a 512 -c unomi-tracker-$version.tar.gz.sha512
 (or sha512sum -c, on Linux without shasum)
-then untar the source package, check LICENSE and NOTICE, and run yarn install --frozen-lockfile,
-yarn test and npm pack: the npm package it builds has the same checksum as the one above.
+then untar the source package, check LICENSE and NOTICE, and run yarn install --frozen-lockfile
+and yarn test.
 
-The npm package is the one published to npm after the vote.
+Please vote to approve this source release:
 
-The vote is open for at least 72 hours, and passes with at least three binding +1 votes and more
-binding +1 than -1 votes.
-
-[ ] +1 Release these packages as Apache Unomi tracker $version
+[ ] +1 Approve the release
 [ ] +0 No opinion
-[ ] -1 Do not release these packages because...
+[ ] -1 Don't approve the release (please provide specific comments)
+
+This vote will be open for at least 72 hours, or until the necessary number of binding votes
+(3 +1) is reached.
+
+Please let me know if you have any questions.
 
 Thanks,
 <name>
@@ -776,7 +790,7 @@ cmd_publish() {
         ok "moved to $DIST_RELEASE/$version/"
     fi
 
-    step "Publish the voted npm package"
+    step "Publish the convenience npm package (built from the voted source)"
     local from=$DIST_RELEASE/$version
     svn info "$from" >/dev/null 2>&1 || from=$DIST_DEV/$version-rc$rc
     local file="$NPM_PACKAGE-$version.tgz" suffix
@@ -790,7 +804,7 @@ cmd_publish() {
     integrity=$(npm_integrity "$work/$file")
     published=$(npm view "$NPM_PACKAGE@$version" dist.integrity 2>/dev/null || true)
     if [ -n "$published" ]; then
-        [ "$published" = "$integrity" ] && ok "$NPM_PACKAGE@$version is on npm, and is the voted package" || fail "$NPM_PACKAGE@$version is on npm, but is not the voted package"
+        [ "$published" = "$integrity" ] && ok "$NPM_PACKAGE@$version is on npm, and matches the staged convenience package" || fail "$NPM_PACKAGE@$version is on npm, but does not match the staged convenience package"
     else
         # A release of an older line than npm's latest keeps latest: 1.x is published as latest-1
         local latest major tag_args=()
@@ -802,7 +816,7 @@ cmd_publish() {
         if confirm "npm publish ${tag_args[*]+${tag_args[*]} }$file (npm's latest is ${latest:-none})?"; then
             npm publish "${tag_args[@]+"${tag_args[@]}"}" "$work/$file"
             published=$(npm view "$NPM_PACKAGE@$version" dist.integrity 2>/dev/null || true)
-            [ "$published" = "$integrity" ] && ok "npm has $NPM_PACKAGE@$version, and it is the voted package" || fail "npm does not give the voted package for $NPM_PACKAGE@$version (integrity ${published:-none})"
+            [ "$published" = "$integrity" ] && ok "npm has $NPM_PACKAGE@$version, matching the staged convenience package" || fail "npm does not give the staged convenience package for $NPM_PACKAGE@$version (integrity ${published:-none})"
         fi
     fi
 
@@ -824,45 +838,57 @@ EOF
 
 write_result_email() {
     local version=$1 rc=$2 plus=$3 minus=$4
+    # Same shape as the Unomi server [RESULT][VOTE] mail in the release guide.
     cat <<EOF
 To: dev@unomi.apache.org
-Subject: [RESULT][VOTE] Release Apache Unomi tracker $version (release candidate $rc)
+Subject: [RESULT][VOTE] Apache Unomi tracker $version release (RC$rc)
 
-Hi all,
+Hi,
 
-The vote to release Apache Unomi tracker $version (release candidate $rc) passes, with:
+Thank you for your votes.
 
-$plus binding +1: <names>
-<n> non-binding +1: <names>
-<n> +0: <names>
-$minus binding -1: <names>
+Here's the summary:
 
-Thanks to everyone who checked the release candidate and voted. I will now publish the release.
+$plus binding +1:
+<names>
 
+<n> non-binding +1:
+<names>
+
+<n> +0:
+<names>
+
+$minus binding -1:
+<names>
+
+The proposal to release Apache Unomi tracker $version is approved by the team.
+
+Thanks,
 <name>
 EOF
 }
 
 write_announcement() {
     local version=$1
+    # Same shape as the Unomi server announce template; source download first, npm as convenience.
     cat <<EOF
 To: dev@unomi.apache.org, user@unomi.apache.org, announce@apache.org
-Subject: [ANNOUNCE] Apache Unomi tracker $version released
+Subject: [ANNOUNCE] Apache Unomi tracker $version Release
 
-The Apache Unomi team is pleased to announce the release of Apache Unomi tracker $version.
+The Apache Unomi team would like to announce the release of Apache Unomi tracker $version.
 
 Apache Unomi tracker is the JavaScript library that websites use to send their visitors' events
 to Apache Unomi, a customer data platform, and to personalize their pages with its answers.
 
 <What the release brings, in a few lines, from CHANGES.md.>
 
-Download: https://unomi.apache.org/download.html
-npm: npm install $NPM_PACKAGE@$version
+Source download: https://unomi.apache.org/download.html
+Convenience package (npm): npm install $NPM_PACKAGE@$version
 Release notes: https://github.com/apache/unomi-tracker/blob/v$version/CHANGES.md
+JIRA: $JIRA/secure/ReleaseNote.jspa?projectId=$JIRA_PROJECT_ID&version=$(jira_version_id "$version")
 
-Thanks to everyone who contributed to this release.
-
-<name>, on behalf of the Apache Unomi PMC
+Thanks!
+The Apache Unomi Team
 EOF
 }
 
