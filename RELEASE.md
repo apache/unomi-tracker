@@ -240,7 +240,8 @@ After the vote
 `scripts/release.sh publish X.Y.Z N --key <id>` checks the vote (72 hours, and the binding votes it
 asks for), writes the result email to `target/release/X.Y.Z/result-email.txt`, tags, moves the
 **source** and the convenience binary to `dist/release`, publishes the convenience `.tgz` to npm
-(same bytes as staged, no rebuild), checks that npm serves that file, writes the announcement to
+(same bytes as staged, no rebuild), checks that npm serves that file (it waits a few minutes,
+because npm accepts a publish before the registry shows it), writes the announcement to
 `target/release/X.Y.Z/announce-email.txt`, and says what to do by hand: JIRA and
 reporter.apache.org, then the download page, from one hour after the move. Then
 `scripts/release.sh finish X.Y.Z` checks downloads.apache.org, the download page and JIRA, removes

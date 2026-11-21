@@ -389,6 +389,23 @@ npm_integrity() {
     node -e 'const c = require("crypto"), f = require("fs"); console.log("sha512-" + c.createHash("sha512").update(f.readFileSync(process.argv[1])).digest("base64"))' "$1"
 }
 
+# npm accepts a publish before the registry serves the version. Prints its integrity once it does,
+# or nothing after about five minutes. Waiting lines go to stderr so a caller can capture the integrity.
+npm_published_integrity() {
+    local spec=$1 attempt=0 integrity=
+    while [ "$attempt" -lt 20 ]; do
+        attempt=$((attempt + 1))
+        integrity=$(npm view "$spec" dist.integrity 2>/dev/null || true)
+        if [ -n "$integrity" ]; then
+            printf '%s\n' "$integrity"
+            return 0
+        fi
+        printf '   waiting for npm to serve %s (%d/20)\n' "$spec" "$attempt" >&2
+        sleep 15
+    done
+    return 1
+}
+
 # A tag is signed by a key of the KEYS
 check_tag_signature() {
     local home=$1 tag=$2
@@ -814,9 +831,19 @@ cmd_publish() {
             tag_args=(--tag "latest-$major")
         fi
         if confirm "npm publish ${tag_args[*]+${tag_args[*]} }$file (npm's latest is ${latest:-none})?"; then
-            npm publish "${tag_args[@]+"${tag_args[@]}"}" "$work/$file"
-            published=$(npm view "$NPM_PACKAGE@$version" dist.integrity 2>/dev/null || true)
-            [ "$published" = "$integrity" ] && ok "npm has $NPM_PACKAGE@$version, matching the staged convenience package" || fail "npm does not give the staged convenience package for $NPM_PACKAGE@$version (integrity ${published:-none})"
+            if npm publish "${tag_args[@]+"${tag_args[@]}"}" "$work/$file"; then
+                published=$(npm_published_integrity "$NPM_PACKAGE@$version" || true)
+            else
+                # A re-run while the first publish is still propagating is refused by npm. The version may already match.
+                published=$(npm view "$NPM_PACKAGE@$version" dist.integrity 2>/dev/null || true)
+            fi
+            if [ "$published" = "$integrity" ]; then
+                ok "npm has $NPM_PACKAGE@$version, matching the staged convenience package"
+            elif [ -n "$published" ]; then
+                fail "npm has $NPM_PACKAGE@$version, but it does not match the staged convenience package"
+            else
+                fail "npm has not served $NPM_PACKAGE@$version yet. Do not publish it again. Run publish again once npm shows it."
+            fi
         fi
     fi
 
@@ -906,7 +933,13 @@ cmd_finish() {
     [ "$missing" = 0 ] && ok "$downloads/ has the source package, its signature and checksum" || fail "$downloads/ does not have the release yet: it can take an hour after the move"
 
     step "The download page"
-    if curl -fsSL https://unomi.apache.org/download.html 2>/dev/null | grep -q "unomi-tracker/$version/"; then
+    # Do not pipe curl into grep -q under pipefail: grep -q exits early, curl gets SIGPIPE,
+    # and the pipeline is treated as a failure even when the page links to the release.
+    local page_file
+    page_file=$(temp_dir)/download.html
+    if ! curl -fsSL -A 'Mozilla/5.0 (compatible; unomi-tracker-release/1.0)' -o "$page_file" https://unomi.apache.org/download.html; then
+        fail "could not download https://unomi.apache.org/download.html"
+    elif grep -F -q "unomi-tracker/$version/" "$page_file"; then
         ok "https://unomi.apache.org/download.html links to $version"
     else
         fail "https://unomi.apache.org/download.html does not link to $version yet: update tracker.latest in unomi-site, and publish the site"
